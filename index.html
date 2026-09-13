@@ -69,7 +69,7 @@
 
     /* Dimmed Offline State */
     .card.device-offline {
-      opacity: 0.45;
+      opacity: 0.42;
       filter: grayscale(0.85);
       border-color: rgba(239, 68, 68, 0.25);
     }
@@ -94,6 +94,14 @@
     .btn-off { background: #334155; color: #94a3b8; }
     .btn-on { background: var(--success); color: white; }
     
+    /* Hardware Pending / Busy State */
+    .btn-toggle.btn-busy {
+      background: #1e293b;
+      color: #38bdf8;
+      cursor: wait;
+      pointer-events: none;
+    }
+
     /* Disabled Offline Button */
     .btn-toggle.btn-disabled {
       background: #1e293b;
@@ -348,10 +356,9 @@
     // --- HARDWARE POWER / REACHABILITY CHECKER ---
     async function checkDeviceHealth(dev) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2200); // 2.2s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 1800);
 
       try {
-        // Fast probe to ESP (ping or state endpoint)
         await fetch(`http://${dev.ip}/ping`, { 
           method: 'GET', 
           mode: 'no-cors', 
@@ -370,6 +377,7 @@
       let stateChanged = false;
 
       for (let i = 0; i < devices.length; i++) {
+        if (devices[i]._isBusy) continue; // Don't interrupt while toggle in-flight
         const isOnline = await checkDeviceHealth(devices[i]);
         if (devices[i].isOnline !== isOnline) {
           devices[i].isOnline = isOnline;
@@ -382,7 +390,6 @@
       }
     }
 
-    // Poll switch reachability every 5 seconds
     setInterval(pollAllDevicesHealth, 5000);
 
     function checkUrlPairing() {
@@ -441,7 +448,6 @@
     }
 
     function toggleDrawer(index) {
-      // Don't open options if device is powered off
       if (devices[index].isOnline === false) return;
       openDrawerIndex = openDrawerIndex === index ? null : index;
       render();
@@ -477,7 +483,8 @@
       }
 
       devices.forEach((dev, index) => {
-        const isOnline = dev.isOnline !== false; // defaults to true initially
+        const isOnline = dev.isOnline !== false;
+        const isBusy = !!dev._isBusy;
         const isOpen = openDrawerIndex === index && isOnline;
         const currentMode = dev.mode || "none";
         const voiceOn = dev.voiceOn !== undefined ? dev.voiceOn : "light on";
@@ -490,10 +497,22 @@
         card.id = `card-${index}`;
         
         card.onclick = (e) => {
-          if (!isOnline) return;
+          if (!isOnline || isBusy) return;
           if (e.target.closest('.dev-actions') || e.target.closest('.sensor-drawer')) return;
           toggleDrawer(index);
         };
+
+        // Determine toggle button visual state
+        let toggleClass = dev.state ? 'btn-on' : 'btn-off';
+        let toggleText = dev.state ? 'ON' : 'OFF';
+
+        if (!isOnline) {
+          toggleClass = 'btn-disabled';
+          toggleText = 'OFFLINE';
+        } else if (isBusy) {
+          toggleClass = 'btn-busy';
+          toggleText = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        }
 
         card.innerHTML = `
           <div class="card-main">
@@ -511,12 +530,12 @@
             </div>
             <div class="dev-actions">
               <button 
-                class="btn-toggle ${!isOnline ? 'btn-disabled' : (dev.state ? 'btn-on' : 'btn-off')}" 
+                class="btn-toggle ${toggleClass}" 
                 id="btn-toggle-${index}" 
-                onclick="event.stopPropagation(); ${isOnline ? `toggleDevice(${index});` : ''}"
-                ${!isOnline ? 'disabled' : ''}
-                title="${isOnline ? 'Toggle Switch' : 'Device is offline / powered off'}">
-                ${!isOnline ? 'OFFLINE' : (dev.state ? 'ON' : 'OFF')}
+                onclick="event.stopPropagation(); ${isOnline && !isBusy ? `toggleDevice(${index});` : ''}"
+                ${!isOnline || isBusy ? 'disabled' : ''}
+                title="${isOnline ? 'Toggle Switch' : 'Device is offline / unpowered'}">
+                ${toggleText}
               </button>
               <button class="btn-share" onclick="event.stopPropagation(); shareDevice(${index});" title="Share with family (10-min link)">
                 <i class="fa-solid fa-share-nodes"></i>
@@ -525,7 +544,7 @@
             </div>
           </div>
 
-          <div class="hint-label">${!isOnline ? '✕ Device disconnected from power' : (isOpen ? '▲ Collapse options' : '▼ Tap card to open AI & sensor modes')}</div>
+          <div class="hint-label">${!isOnline ? '✕ Hardware unpowered (No toggle allowed)' : (isOpen ? '▲ Collapse options' : '▼ Tap card to open AI & sensor modes')}</div>
           
           <div class="sensor-drawer ${isOpen ? 'open' : ''}">
             <div class="drawer-title">
@@ -612,46 +631,62 @@
       closeModal();
     }
 
-    function updateDeviceUI(index, state) {
+    // --- PESSIMISTIC ACKNOWLEDGMENT TOGGLE SYSTEM ---
+    async function sendCommand(index, targetState) {
       const dev = devices[index];
-      if (dev.isOnline === false) return; // Prevent updating UI if offline
-
-      const btn = document.getElementById(`btn-toggle-${index}`);
-      const iconBox = document.getElementById(`icon-${index}`);
-      if (btn) {
-        btn.className = `btn-toggle ${state ? 'btn-on' : 'btn-off'}`;
-        btn.innerText = state ? 'ON' : 'OFF';
-      }
-      if (iconBox) {
-        iconBox.className = `icon-box ${state ? 'active' : ''}`;
-        iconBox.innerHTML = `<i class="fa-solid ${state ? 'fa-lightbulb' : 'fa-power-off'}"></i>`;
-      }
-    }
-
-    async function sendCommand(index, state) {
-      const dev = devices[index];
+      
       if (dev.isOnline === false) {
-        alert(`Cannot send command: "${dev.name}" is currently powered off.`);
+        alert(`Cannot toggle: "${dev.name}" is powered down or unreachable.`);
         return;
       }
 
-      dev.state = state;
-      saveState();
-      updateDeviceUI(index, state);
-      if (navigator.vibrate) navigator.vibrate(60);
+      // 1. Lock the switch in pending/busy state immediately
+      dev._isBusy = true;
+      render();
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s strict hardware timeout
 
       try {
-        await fetch(`http://${dev.ip}/toggle?state=${state ? 1 : 0}`, { mode: 'cors' });
+        const response = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}`, { 
+          method: 'GET',
+          mode: 'cors',
+          signal: controller.signal 
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Device responded with HTTP status ${response.status}`);
+        }
+
+        // 2. Hardware confirmed ACK: now and only now flip the UI state
+        dev.state = targetState;
+        dev.isOnline = true;
+        dev._isBusy = false;
+        saveState();
+        render();
+
+        if (navigator.vibrate) navigator.vibrate(60);
+
       } catch (err) {
-        console.warn(`Device ${dev.name} failed to respond:`, err);
-        // If device failed to respond to toggle, verify if it went down
-        pollAllDevicesHealth();
+        clearTimeout(timeoutId);
+        console.warn(`Toggle failed for ${dev.name}. Device did not confirm state:`, err);
+
+        // 3. Revert busy state and immediately mark device as offline
+        dev._isBusy = false;
+        dev.isOnline = false;
+        saveState();
+        render();
+
+        alert(`⚠️ Switch didn't respond: "${dev.name}" appears powered off or offline. Card has been dimmed.`);
       }
     }
 
     function toggleDevice(index) {
-      if (devices[index].isOnline === false) return;
-      sendCommand(index, !devices[index].state);
+      const dev = devices[index];
+      if (dev.isOnline === false || dev._isBusy) return;
+      sendCommand(index, !dev.state);
     }
 
     function deleteDevice(index) {
@@ -896,11 +931,11 @@
           };
 
           if (testFuzzyMatch(liveOn)) {
-            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">MATCH</span> <span>Matched "${liveOn}"! Turning ON...</span>`;
+            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">MATCH</span> <span>Matched "${liveOn}"! Sending to device...</span>`;
             sendCommand(index, true);
             setTimeout(updateStatusText, 1400);
           } else if (testFuzzyMatch(liveOff)) {
-            feedback.innerHTML = `<span class="ai-badge" style="background:#ef4444; color:white;">MATCH</span> <span>Matched "${liveOff}"! Turning OFF...</span>`;
+            feedback.innerHTML = `<span class="ai-badge" style="background:#ef4444; color:white;">MATCH</span> <span>Matched "${liveOff}"! Sending to device...</span>`;
             sendCommand(index, false);
             setTimeout(updateStatusText, 1400);
           }
@@ -1022,7 +1057,7 @@
         window.ondevicemotion = (e) => {
           const acc = e.accelerationIncludingGravity;
           if (!acc) return;
-          const force = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z) - 9.81;
+          const force = Math.sqrt(acc.x * acc.x + mechanical_g = 9.81) - 9.81;
           if (force > 11.0 && Date.now() - lastShake > 1500) {
             lastShake = Date.now();
             toggleDevice(index);
@@ -1056,7 +1091,6 @@
 
     checkUrlPairing();
     render();
-    // Run an immediate health check on page load
     pollAllDevicesHealth();
   </script>
 </body>
