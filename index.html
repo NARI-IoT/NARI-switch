@@ -4,235 +4,296 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NARI Smart Switch</title>
-  <meta name="theme-color" content="#090d16">
+  <meta name="theme-color" content="#10281e">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <!-- Firebase Web SDKs (Compat for direct browser execution) -->
+  <!-- Firebase Web SDKs (Compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
   <style>
+    /* Default: Light Green Home Automation Theme */
     :root {
-      --bg: #090d16;
-      --card-bg: #141b2d;
-      --card-border: rgba(255, 255, 255, 0.08);
-      --primary: #0284c7;
-      --accent: #38bdf8;
+      --bg: #0b1a13;
+      --card-bg: #12241b;
+      --card-border: rgba(52, 211, 153, 0.16);
+      --primary: #10b981;
+      --accent: #34d399;
       --success: #10b981;
       --danger: #ef4444;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
+      --text: #f0fdf4;
+      --text-muted: #86efac;
+      --switch-off: #1e3a2b;
     }
+
+    /* Alternative Themes */
+    body.theme-emerald {
+      --bg: #061e14;
+      --card-bg: #0b2d1f;
+      --card-border: rgba(16, 185, 129, 0.22);
+      --primary: #059669;
+      --accent: #10b981;
+      --success: #10b981;
+      --text-muted: #6ee7b7;
+      --switch-off: #134e35;
+    }
+    body.theme-ocean {
+      --bg: #090d16;
+      --card-bg: #141b2d;
+      --card-border: rgba(56, 189, 248, 0.16);
+      --primary: #0284c7;
+      --accent: #38bdf8;
+      --success: #0284c7;
+      --text-muted: #94a3b8;
+      --switch-off: #1e293b;
+    }
+    body.theme-amber {
+      --bg: #1a1208;
+      --card-bg: #281d0f;
+      --card-border: rgba(245, 158, 11, 0.2);
+      --primary: #d97706;
+      --accent: #fbbf24;
+      --success: #f59e0b;
+      --text-muted: #fcd34d;
+      --switch-off: #452d14;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px 16px 60px 16px; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 14px 12px 60px 12px; transition: background 0.3s ease, color 0.3s ease; }
     
-    header { width: 100%; max-width: 480px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--card-border); }
-    .brand { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 700; color: var(--accent); }
-    .header-actions { display: flex; align-items: center; gap: 10px; }
+    header { width: 100%; max-width: 440px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--card-border); }
+    .brand { display: flex; align-items: center; gap: 8px; font-size: 1.12rem; font-weight: 700; color: var(--accent); }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
     
     .btn-auth {
-      background: #1e293b;
+      background: rgba(255, 255, 255, 0.05);
       color: var(--text);
       border: 1px solid var(--card-border);
-      border-radius: 20px;
-      padding: 6px 12px;
-      font-size: 0.78rem;
+      border-radius: 18px;
+      padding: 5px 10px;
+      font-size: 0.74rem;
       font-weight: 600;
       display: flex;
       align-items: center;
       gap: 6px;
       cursor: pointer;
     }
-    .user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-    .btn-add-top { background: var(--primary); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; cursor: pointer; }
+    .user-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+    .btn-circle-top { background: var(--primary); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; cursor: pointer; transition: 0.2s; }
+    .btn-circle-top.btn-gear { background: rgba(255, 255, 255, 0.07); color: var(--accent); border: 1px solid var(--card-border); }
 
-    .sync-status { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 14px; text-align: right; width: 100%; max-width: 480px; }
+    .sync-status { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 12px; text-align: right; width: 100%; max-width: 440px; }
 
-    /* Dashboard Grid of Square Cards */
+    /* Compact 2-Column Grid for Half-Size Cards */
     .container { 
       width: 100%; 
-      max-width: 480px; 
+      max-width: 440px; 
       display: grid; 
       grid-template-columns: repeat(2, 1fr); 
-      gap: 14px; 
+      gap: 10px; 
     }
 
-    /* Square Card Style */
+    /* Half-Size Square Smart Card */
     .card { 
       background: var(--card-bg); 
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
       border: 1px solid var(--card-border); 
-      border-radius: 22px; 
-      padding: 16px; 
+      border-radius: 18px; 
+      padding: 12px; 
       display: flex; 
       flex-direction: column; 
       justify-content: space-between; 
-      aspect-ratio: 1 / 1; 
-      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.45); 
+      min-height: 126px;
+      box-shadow: 0 6px 18px -3px rgba(0,0,0,0.45); 
       cursor: pointer; 
-      transition: all 0.25s ease; 
+      transition: transform 0.15s ease, opacity 0.25s ease, border-color 0.25s ease; 
       user-select: none;
       position: relative;
-      overflow: hidden;
+      overflow: visible;
     }
 
-    /* When sensor drawer is expanded, let card expand dynamically */
+    /* Dark gradient tint over card photo for readable text */
+    .card.has-photo::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 18px;
+      background: rgba(8, 16, 12, 0.72);
+      z-index: 1;
+    }
+    .card > * { position: relative; z-index: 2; }
+
     .card.drawer-active {
-      aspect-ratio: auto;
       grid-column: span 2;
+      min-height: auto;
     }
 
-    /* Dimmed Offline State */
+    /* Offline state */
     .card.device-offline {
-      opacity: 0.38;
-      filter: grayscale(0.9);
-      border-color: rgba(239, 68, 68, 0.2);
+      opacity: 0.42;
+      filter: grayscale(0.85);
+      border-color: rgba(239, 68, 68, 0.25);
     }
     .card.device-offline:hover { cursor: not-allowed; }
 
     .card-top { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
-    .icon-box { width: 44px; height: 44px; border-radius: 12px; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--text-muted); transition: 0.3s; }
-    .icon-box.active { background: rgba(16, 185, 129, 0.18); color: var(--success); }
 
-    .card-actions-mini { display: flex; align-items: center; gap: 4px; }
-    .btn-icon-mini { background: transparent; border: none; color: var(--text-muted); font-size: 0.82rem; cursor: pointer; padding: 4px; border-radius: 6px; }
-    .btn-icon-mini:hover { color: var(--accent); }
-    .btn-icon-mini.del:hover { color: var(--danger); }
+    /* Lightbulb Icon Tile */
+    .icon-box { 
+      width: 38px; 
+      height: 38px; 
+      border-radius: 11px; 
+      background: rgba(255, 255, 255, 0.05); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 1.05rem; 
+      color: var(--text-muted); 
+      transition: 0.25s; 
+      cursor: pointer;
+    }
+    .icon-box:hover { background: rgba(52, 211, 153, 0.25); color: var(--accent); }
+    .icon-box.active { background: rgba(16, 185, 129, 0.22); color: var(--success); }
 
-    .card-mid { margin-top: 10px; }
-    .card-mid h3 { font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .card-mid p { font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+    /* Top Right Switch Container & Hidden Edit */
+    .top-right-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      position: relative;
+    }
 
-    .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-    .status-online { background: var(--success); box-shadow: 0 0 6px var(--success); }
-    .status-offline { background: var(--danger); }
-
-    .card-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-    .state-label { font-size: 0.76rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
-    .state-label.active { color: var(--success); }
-
-    /* Modern Pill Slider Switch */
-    .switch-wrap { position: relative; display: inline-block; width: 48px; height: 26px; }
+    /* Pill Slider Switch */
+    .switch-wrap { position: relative; display: inline-block; width: 44px; height: 24px; }
     .switch-wrap input { opacity: 0; width: 0; height: 0; }
     .slider {
       position: absolute;
       cursor: pointer;
       top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #334155;
+      background-color: var(--switch-off);
       transition: 0.25s;
-      border-radius: 30px;
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.06);
     }
     .slider:before {
       position: absolute;
       content: "";
-      height: 18px;
-      width: 18px;
-      left: 4px;
-      bottom: 4px;
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
       background-color: white;
       transition: 0.25s;
       border-radius: 50%;
     }
     input:checked + .slider { background-color: var(--success); }
-    input:checked + .slider:before { transform: translateX(22px); }
+    input:checked + .slider:before { transform: translateX(20px); }
     
-    /* Disabled Slider (Offline or Verifying) */
     .switch-wrap.disabled { pointer-events: none; opacity: 0.45; }
     .switch-wrap.verifying .slider { background-color: #f59e0b !important; animation: pulse 0.7s infinite alternate; }
     @keyframes pulse { from { opacity: 0.6; } to { opacity: 1.0; } }
 
-    .drawer-trigger { font-size: 0.68rem; color: #64748b; margin-top: 6px; text-align: center; width: 100%; cursor: pointer; }
+    /* Edit Button (Revealed on Right Click / Long Press) */
+    .btn-edit-revealed {
+      display: none;
+      background: rgba(18, 36, 27, 0.95);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 7px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Dropdown menu for Share & Delete */
+    .edit-dropdown {
+      display: none;
+      position: absolute;
+      top: 56px;
+      right: 0;
+      background: #0f1d16;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.7);
+      width: 130px;
+      z-index: 50;
+      overflow: hidden;
+    }
+    .edit-dropdown.show { display: block; }
+    .edit-menu-item {
+      width: 100%;
+      padding: 8px 10px;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 0.74rem;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+    }
+    .edit-menu-item:hover { background: rgba(52, 211, 153, 0.15); color: var(--accent); }
+    .edit-menu-item.danger { color: #fca5a5; }
+    .edit-menu-item.danger:hover { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    /* Bottom Information Area */
+    .card-info { margin-top: 10px; }
+    .card-info h3 { font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-info p { font-size: 0.68rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .status-online { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .status-offline { background: var(--danger); }
+
+    .drawer-trigger { font-size: 0.64rem; color: rgba(255,255,255,0.4); margin-top: 6px; text-align: center; width: 100%; cursor: pointer; }
 
     /* Drawer Styles */
-    .sensor-drawer { 
-      margin-top: 14px; 
-      padding-top: 12px; 
-      border-top: 1px dashed var(--card-border); 
-      display: none; 
-      flex-direction: column; 
-      gap: 12px; 
-      width: 100%;
-    }
+    .sensor-drawer { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--card-border); display: none; flex-direction: column; gap: 8px; width: 100%; }
     .sensor-drawer.open { display: flex; }
-    .drawer-title { font-size: 0.76rem; color: var(--accent); font-weight: 600; }
-    select { 
-      background: #090d16; 
-      border: 1px solid var(--card-border); 
-      color: #38bdf8; 
-      padding: 8px 10px; 
-      border-radius: 8px; 
-      font-size: 0.82rem; 
-      outline: none; 
-      width: 100%; 
-      cursor: pointer; 
-    }
+    .drawer-title { font-size: 0.72rem; color: var(--accent); font-weight: 600; }
+    select { background: #0b1a13; border: 1px solid var(--card-border); color: var(--accent); padding: 6px 8px; border-radius: 7px; font-size: 0.76rem; outline: none; width: 100%; cursor: pointer; }
 
-    .custom-voice-box {
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      background: #090d16;
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 10px;
-    }
-    .voice-input-row { display: flex; flex-direction: column; gap: 4px; }
-    .voice-input-row label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); }
-    .custom-voice-input { background: #141b2d; border: 1px solid var(--card-border); color: var(--accent); padding: 7px 10px; border-radius: 6px; font-size: 0.82rem; outline: none; width: 100%; }
+    .custom-voice-box, .clap-trainer-box { display: none; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 10px; padding: 8px; }
+    .voice-input-row { display: flex; flex-direction: column; gap: 3px; }
+    .voice-input-row label { font-size: 0.68rem; font-weight: 600; color: var(--text-muted); }
+    .custom-voice-input { background: #0b1a13; border: 1px solid var(--card-border); color: var(--accent); padding: 6px 8px; border-radius: 6px; font-size: 0.76rem; outline: none; width: 100%; }
 
-    .clap-trainer-box {
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      background: #090d16;
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 10px;
-    }
-    .trainer-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; font-weight: 600; color: var(--accent); }
+    .trainer-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; font-weight: 600; color: var(--accent); }
     .trainer-actions { display: flex; gap: 6px; }
-    .btn-train-clap {
-      flex: 1;
-      padding: 8px;
-      background: #1e293b;
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      color: white;
-      font-size: 0.72rem;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
+    .btn-train-clap { flex: 1; padding: 7px; background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); border-radius: 7px; color: white; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
     .btn-train-clap.listening { background: #dc2626; animation: pulse 1s infinite alternate; }
 
-    .clap-cadence-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-top: 4px;
-      padding-top: 6px;
-      border-top: 1px dashed var(--card-border);
-    }
-    .clap-cadence-row label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
-    .select-cadence { background: #141b2d; border: 1px solid var(--card-border); color: #38bdf8; padding: 5px 8px; border-radius: 6px; font-size: 0.76rem; width: auto; }
+    .clap-cadence-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 3px; }
+    .clap-cadence-row label { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
+    .select-cadence { background: #0b1a13; border: 1px solid var(--card-border); color: var(--accent); padding: 4px 6px; border-radius: 6px; font-size: 0.72rem; width: auto; }
 
-    .meter-container { width: 100%; height: 6px; background: #090d16; border-radius: 3px; overflow: hidden; position: relative; display: none; border: 1px solid var(--card-border); }
-    .meter-bar { width: 0%; height: 100%; background: #38bdf8; transition: width 0.04s ease-out; }
+    .meter-container { width: 100%; height: 5px; background: #0b1a13; border-radius: 3px; overflow: hidden; position: relative; display: none; border: 1px solid var(--card-border); }
+    .meter-bar { width: 0%; height: 100%; background: var(--accent); transition: width 0.04s ease-out; }
     .meter-threshold-line { position: absolute; top: 0; bottom: 0; left: 65%; width: 2px; background: #ef4444; }
-    
-    .sensor-feedback { font-size: 0.75rem; color: #fbbf24; display: none; align-items: center; gap: 6px; font-weight: 500; }
-    .ai-badge { display: inline-block; padding: 2px 6px; border-radius: 5px; background: rgba(56, 189, 248, 0.15); color: var(--accent); font-size: 0.68rem; font-weight: 700; }
+    .sensor-feedback { font-size: 0.72rem; color: #fbbf24; display: none; align-items: center; gap: 5px; font-weight: 500; }
+    .ai-badge { display: inline-block; padding: 2px 5px; border-radius: 4px; background: rgba(52, 211, 153, 0.16); color: var(--accent); font-size: 0.65rem; font-weight: 700; }
 
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; justify-content: center; align-items: center; padding: 20px; z-index: 100; }
-    .modal-box { background: #141b2d; border: 1px solid var(--card-border); border-radius: 20px; width: 100%; max-width: 360px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
-    .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; }
-    input[type=text] { background: #090d16; border: 1px solid var(--card-border); color: white; padding: 10px; border-radius: 8px; font-size: 0.88rem; outline: none; }
-    .btn-primary { background: linear-gradient(135deg, #0284c7, #0369a1); color: white; border: none; padding: 11px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    /* Modals */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none; justify-content: center; align-items: center; padding: 18px; z-index: 100; }
+    .modal-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px; width: 100%; max-width: 350px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 0.95rem; }
+    .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.15rem; cursor: pointer; }
+    input[type=text] { background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); color: white; padding: 10px; border-radius: 8px; font-size: 0.84rem; outline: none; }
+    .btn-primary { background: var(--primary); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+    /* Palette Selection in Theme Modal */
+    .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 6px; }
+    .theme-tile { padding: 12px; border-radius: 10px; border: 1px solid var(--card-border); display: flex; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer; }
+    .swatch { width: 18px; height: 18px; border-radius: 50%; }
   </style>
 </head>
 <body>
@@ -245,13 +306,15 @@
           <i class="fa-brands fa-google"></i> Login
         </button>
       </div>
-      <button class="btn-add-top" onclick="openModal()" title="Add Device"><i class="fa-solid fa-plus"></i></button>
+      <button class="btn-circle-top btn-gear" onclick="openThemeModal()" title="Theme Colors"><i class="fa-solid fa-gear"></i></button>
+      <button class="btn-circle-top" onclick="openModal()" title="Add Device"><i class="fa-solid fa-plus"></i></button>
     </div>
   </header>
 
   <div class="sync-status" id="syncStatus">Storage: Local</div>
   <div class="container" id="deviceList"></div>
 
+  <!-- Add Device Modal -->
   <div class="modal-overlay" id="pairModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -260,7 +323,48 @@
       </div>
       <input type="text" id="devName" placeholder="Device Name (e.g. Bed Lamp)">
       <input type="text" id="devIp" placeholder="ESP IP (e.g. 192.168.1.10)">
-      <button class="btn-primary" onclick="addDevice()">Pair Device</button>
+      <button class="btn-primary" onclick="addDevice()">Pair Switch</button>
+    </div>
+  </div>
+
+  <!-- Custom Card Photo Modal -->
+  <div class="modal-overlay" id="photoModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span id="photoModalTitle">Card Background Photo</span>
+        <button class="btn-close" onclick="closePhotoModal()">✕</button>
+      </div>
+      <p style="font-size:0.75rem; color:var(--text-muted);">Choose a picture or paste an image link for this device card:</p>
+      <input type="file" id="cardPhotoFile" accept="image/*" onchange="handlePhotoUpload(event)" style="font-size:0.75rem; color:var(--text-muted);">
+      <input type="text" id="cardPhotoUrl" placeholder="Or paste image URL (https://...)">
+      <div style="display:flex; gap:8px;">
+        <button class="btn-primary" style="flex:1;" onclick="saveCardPhotoUrl()">Apply Photo</button>
+        <button class="btn-primary" style="background:#475569; flex:0.5;" onclick="clearCardPhoto()">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme Selection Modal -->
+  <div class="modal-overlay" id="themeModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span>Homepage Theme</span>
+        <button class="btn-close" onclick="closeThemeModal()">✕</button>
+      </div>
+      <div class="theme-grid">
+        <div class="theme-tile" onclick="applyTheme('default')" style="background:#12241b;">
+          <span class="swatch" style="background:#10b981;"></span> Light Green
+        </div>
+        <div class="theme-tile" onclick="applyTheme('emerald')" style="background:#0b2d1f;">
+          <span class="swatch" style="background:#059669;"></span> Emerald
+        </div>
+        <div class="theme-tile" onclick="applyTheme('ocean')" style="background:#141b2d;">
+          <span class="swatch" style="background:#0284c7;"></span> Sky Blue
+        </div>
+        <div class="theme-tile" onclick="applyTheme('amber')" style="background:#281d0f;">
+          <span class="swatch" style="background:#f59e0b;"></span> Amber
+        </div>
+      </div>
     </div>
   </div>
 
@@ -288,6 +392,10 @@
 
     let devices = JSON.parse(localStorage.getItem("nari_devices") || "[]");
     let openDrawerIndex = null;
+    let activePhotoIndex = null;
+    let activeEditMenuIndex = null;
+    let touchTimer = null;
+
     let audioCtx = null;
     let micStream = null;
     let analyser = null;
@@ -296,6 +404,30 @@
     let diyIntervals = {};
     let isTrainingClap = false;
     let clapTrainingBuffer = [];
+
+    // Theme initialization
+    const savedTheme = localStorage.getItem("nari_theme") || "default";
+    applyTheme(savedTheme, false);
+
+    function applyTheme(themeName, save = true) {
+      document.body.className = "";
+      if (themeName !== "default") {
+        document.body.classList.add(`theme-${themeName}`);
+      }
+      if (save) {
+        localStorage.setItem("nari_theme", themeName);
+        closeThemeModal();
+      }
+    }
+
+    function openThemeModal() { document.getElementById("themeModal").style.display = "flex"; }
+    function closeThemeModal() { document.getElementById("themeModal").style.display = "none"; }
+
+    // Close open menus when clicking anywhere else
+    document.addEventListener("click", () => {
+      document.querySelectorAll('.edit-dropdown').forEach(el => el.classList.remove('show'));
+      document.querySelectorAll('.btn-edit-revealed').forEach(el => el.style.display = 'none');
+    });
 
     if (auth) {
       auth.onAuthStateChanged(async (user) => {
@@ -306,7 +438,7 @@
         if (user) {
           authContainer.innerHTML = `
             <button class="btn-auth" onclick="handleSignOut()" title="Click to Logout">
-              <img class="user-avatar" src="${user.photoURL || 'https://via.placeholder.com/24'}" alt="user">
+              <img class="user-avatar" src="${user.photoURL || 'https://via.placeholder.com/20'}" alt="user">
               <span>${user.displayName ? user.displayName.split(' ')[0] : 'User'}</span>
             </button>
           `;
@@ -366,17 +498,11 @@
       }
     }
 
-    // --- PING HEALTH CHECK (Lightweight ping) ---
     async function checkDeviceOnline(dev) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1600); // 1.6s timeout
-
+      const timeoutId = setTimeout(() => controller.abort(), 1600);
       try {
-        await fetch(`http://${dev.ip}/ping`, { 
-          method: 'GET', 
-          mode: 'no-cors', 
-          signal: controller.signal 
-        });
+        await fetch(`http://${dev.ip}/ping`, { method: 'GET', mode: 'no-cors', signal: controller.signal });
         clearTimeout(timeoutId);
         return true;
       } catch (e) {
@@ -388,7 +514,6 @@
     async function pollAllDevicesHealth() {
       if (devices.length === 0) return;
       let stateChanged = false;
-
       for (let i = 0; i < devices.length; i++) {
         if (devices[i]._isVerifying) continue;
         const online = await checkDeviceOnline(devices[i]);
@@ -397,63 +522,69 @@
           stateChanged = true;
         }
       }
-
       if (stateChanged) render();
     }
 
     setInterval(pollAllDevicesHealth, 5000);
 
-    function checkUrlPairing() {
-      const params = new URLSearchParams(window.location.search);
-      const addName = params.get('add');
-      const addIp = params.get('ip');
-      const expiresAt = parseInt(params.get('exp'), 10);
-
-      if (addName && addIp) {
-        const now = Date.now();
-        if (!expiresAt || isNaN(expiresAt) || now > expiresAt) {
-          alert("Pairing link expired (10-minute security limit).");
-          window.history.replaceState({}, document.title, window.location.pathname);
-          return;
-        }
-
-        if (!devices.some(d => d.ip === addIp)) {
-          devices.push({
-            name: decodeURIComponent(addName),
-            ip: decodeURIComponent(addIp),
-            state: false,
-            mode: "none",
-            voiceOn: "light on",
-            voiceOff: "light off",
-            clapProfile: null,
-            clapCadence: "single",
-            isOnline: true
-          });
-          saveState();
-          alert(`Added "${decodeURIComponent(addName)}"!`);
-        }
-        window.history.replaceState({}, document.title, window.location.pathname);
+    // --- REVEAL EDIT BUTTON ON RIGHT CLICK / LONG PRESS ---
+    function triggerEditOption(index, e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      // Hide any previous edit buttons
+      document.querySelectorAll('.btn-edit-revealed').forEach(el => el.style.display = 'none');
+      const btn = document.getElementById(`btn-edit-${index}`);
+      if (btn) {
+        btn.style.display = 'block';
       }
     }
 
-    function shareDevice(index) {
-      const dev = devices[index];
-      const expiry = Date.now() + (10 * 60 * 1000);
-      const shareUrl = `${window.location.origin}${window.location.pathname}?add=${encodeURIComponent(dev.name)}&ip=${encodeURIComponent(dev.ip)}&exp=${expiry}`;
-
-      if (navigator.share) {
-        navigator.share({ title: `NARI Switch: ${dev.name}`, url: shareUrl }).catch(() => {});
-      } else {
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          alert("10-Minute Share Link Copied!");
-        });
-      }
+    function toggleEditDropdown(index, e) {
+      e.stopPropagation();
+      const menu = document.getElementById(`edit-menu-${index}`);
+      const isVisible = menu.classList.contains('show');
+      document.querySelectorAll('.edit-dropdown').forEach(el => el.classList.remove('show'));
+      if (!isVisible) menu.classList.add('show');
     }
 
-    function toggleDrawer(index) {
-      if (devices[index].isOnline === false) return;
-      openDrawerIndex = openDrawerIndex === index ? null : index;
+    // --- CUSTOM PHOTO MODAL ---
+    function openPhotoModal(index, e) {
+      e.stopPropagation();
+      activePhotoIndex = index;
+      document.getElementById("photoModalTitle").innerText = `Photo: ${devices[index].name}`;
+      document.getElementById("cardPhotoUrl").value = devices[index].bgPhoto || "";
+      document.getElementById("photoModal").style.display = "flex";
+    }
+
+    function closePhotoModal() { document.getElementById("photoModal").style.display = "none"; }
+
+    function handlePhotoUpload(e) {
+      const file = e.target.files[0];
+      if (!file || activePhotoIndex === null) return;
+      const reader = new FileReader();
+      reader.onload = (uploadEvt) => {
+        devices[activePhotoIndex].bgPhoto = uploadEvt.target.result;
+        saveState();
+        render();
+        closePhotoModal();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function saveCardPhotoUrl() {
+      if (activePhotoIndex === null) return;
+      const url = document.getElementById("cardPhotoUrl").value.trim();
+      devices[activePhotoIndex].bgPhoto = url || null;
+      saveState();
       render();
+      closePhotoModal();
+    }
+
+    function clearCardPhoto() {
+      if (activePhotoIndex === null) return;
+      devices[activePhotoIndex].bgPhoto = null;
+      saveState();
+      render();
+      closePhotoModal();
     }
 
     function render() {
@@ -461,7 +592,7 @@
       list.innerHTML = "";
 
       if (devices.length === 0) {
-        list.innerHTML = `<div style="grid-column: span 2; text-align:center; padding:40px 10px; color:var(--text-muted);"><p>No smart switches found.<br>Tap <b>+</b> to pair one.</p></div>`;
+        list.innerHTML = `<div style="grid-column: span 2; text-align:center; padding:35px 10px; color:var(--text-muted);"><p>No smart switches found.<br>Tap <b>+</b> to pair one.</p></div>`;
         return;
       }
 
@@ -471,23 +602,57 @@
         const isOpen = openDrawerIndex === index && isOnline;
         const currentMode = dev.mode || "none";
         const hasTrainedClap = dev.clapProfile && dev.clapProfile.length > 0;
+        const hasBg = !!dev.bgPhoto;
 
         const card = document.createElement("div");
-        card.className = `card ${isOnline ? '' : 'device-offline'} ${isOpen ? 'drawer-active' : ''}`;
+        card.className = `card ${isOnline ? '' : 'device-offline'} ${isOpen ? 'drawer-active' : ''} ${hasBg ? 'has-photo' : ''}`;
         card.id = `card-${index}`;
+        if (hasBg) {
+          card.style.backgroundImage = `url("${dev.bgPhoto}")`;
+        }
+
+        // Right-click event
+        card.oncontextmenu = (e) => triggerEditOption(index, e);
+
+        // Touch long-press (500ms)
+        card.ontouchstart = (e) => {
+          touchTimer = setTimeout(() => triggerEditOption(index, e), 500);
+        };
+        card.ontouchend = () => clearTimeout(touchTimer);
+        card.ontouchmove = () => clearTimeout(touchTimer);
 
         card.innerHTML = `
           <div class="card-top">
-            <div class="icon-box ${dev.state && isOnline ? 'active' : ''}">
+            <!-- Lightbulb icon opens Custom Photo Modal -->
+            <div class="icon-box ${dev.state && isOnline ? 'active' : ''}" onclick="openPhotoModal(${index}, event)" title="Tap to set card background photo">
               <i class="fa-solid ${!isOnline ? 'fa-plug-circle-xmark' : (dev.state ? 'fa-lightbulb' : 'fa-power-off')}"></i>
             </div>
-            <div class="card-actions-mini">
-              <button class="btn-icon-mini" onclick="event.stopPropagation(); shareDevice(${index});" title="Share (10m)"><i class="fa-solid fa-share-nodes"></i></button>
-              <button class="btn-icon-mini del" onclick="event.stopPropagation(); deleteDevice(${index});" title="Delete">✕</button>
+
+            <div class="top-right-wrap">
+              <!-- Pill Switch on Top Right -->
+              <label class="switch-wrap ${!isOnline ? 'disabled' : ''} ${isVerifying ? 'verifying' : ''}" onclick="event.stopPropagation();">
+                <input type="checkbox" id="toggle-input-${index}" ${dev.state ? 'checked' : ''} onchange="handleToggleClick(${index}, this)">
+                <span class="slider"></span>
+              </label>
+
+              <!-- Hidden Edit Option (Appears on right-click / hold) -->
+              <button class="btn-edit-revealed" id="btn-edit-${index}" onclick="toggleEditDropdown(${index}, event)">
+                Edit ▾
+              </button>
+
+              <!-- Dropdown Menu containing Share & Delete -->
+              <div class="edit-dropdown" id="edit-menu-${index}">
+                <button class="edit-menu-item" onclick="event.stopPropagation(); shareDevice(${index});">
+                  <i class="fa-solid fa-share-nodes"></i> Share Link
+                </button>
+                <button class="edit-menu-item danger" onclick="event.stopPropagation(); deleteDevice(${index});">
+                  <i class="fa-solid fa-trash"></i> Delete Switch
+                </button>
+              </div>
             </div>
           </div>
 
-          <div class="card-mid">
+          <div class="card-info">
             <h3>${dev.name}</h3>
             <p>
               <span class="status-dot ${isOnline ? 'status-online' : 'status-offline'}"></span>
@@ -495,27 +660,15 @@
             </p>
           </div>
 
-          <div class="card-bottom">
-            <span class="state-label ${dev.state && isOnline ? 'active' : ''}">
-              ${!isOnline ? 'OFFLINE' : (isVerifying ? 'SYNCING...' : (dev.state ? 'ON' : 'OFF'))}
-            </span>
-
-            <!-- Modern Pill Toggle Switch -->
-            <label class="switch-wrap ${!isOnline ? 'disabled' : ''} ${isVerifying ? 'verifying' : ''}" onclick="event.stopPropagation();">
-              <input type="checkbox" id="toggle-input-${index}" ${dev.state ? 'checked' : ''} onchange="handleToggleClick(${index}, this)">
-              <span class="slider"></span>
-            </label>
-          </div>
-
           <div class="drawer-trigger" onclick="toggleDrawer(${index})">
-            ${!isOnline ? '✕ Hardware Offline' : (isOpen ? '▲ Hide Modes' : '▼ AI & Sensor Modes')}
+            ${!isOnline ? '✕ Offline' : (isOpen ? '▲ Hide Modes' : '▼ AI Modes')}
           </div>
 
-          <!-- Collapsible Drawer -->
+          <!-- Sensor Drawer -->
           <div class="sensor-drawer ${isOpen ? 'open' : ''}">
             <div class="drawer-title"><i class="fa-solid fa-brain"></i> Acoustic & Gesture Modes</div>
             <select onchange="handleModeChange(${index}, this.value)">
-              <option value="none" ${currentMode === 'none' ? 'selected' : ''}>Standard Manual Mode</option>
+              <option value="none" ${currentMode === 'none' ? 'selected' : ''}>Standard Manual</option>
               <option value="voice-custom" ${currentMode === 'voice-custom' ? 'selected' : ''}>Voice Commands</option>
               <option value="trained-clap" ${currentMode === 'trained-clap' ? 'selected' : ''}>Fingerprint Clap</option>
               <option value="shake" ${currentMode === 'shake' ? 'selected' : ''}>Shake Phone</option>
@@ -566,25 +719,23 @@
       });
     }
 
-    // --- HARDWARE-CONFIRMED TOGGLE LOGIC ---
     async function handleToggleClick(index, checkboxElem) {
       const dev = devices[index];
       const targetState = checkboxElem.checked;
 
-      // 1. Immediately revert checkbox visually until hardware confirms execution
+      // Keep slider held in current position until ACK
       checkboxElem.checked = dev.state;
 
       if (dev.isOnline === false) {
-        alert(`Cannot toggle: "${dev.name}" is powered down.`);
+        alert(`Cannot toggle: "${dev.name}" is powered off.`);
         return;
       }
 
-      // 2. Lock UI into verification mode
       dev._isVerifying = true;
       render();
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second strict timeout
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       try {
         const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}`, {
@@ -594,29 +745,55 @@
         });
 
         clearTimeout(timeoutId);
+        if (!res.ok) throw new Error("Hardware failed response");
 
-        if (!res.ok) throw new Error("ESP rejected state change");
-
-        // 3. Hardware explicitly verified ACK: Now safely flip state
+        // Verified hardware state change
         dev.state = targetState;
         dev.isOnline = true;
         dev._isVerifying = false;
         saveState();
         render();
 
-        if (navigator.vibrate) navigator.vibrate(50);
+        if (navigator.vibrate) navigator.vibrate(45);
 
       } catch (err) {
         clearTimeout(timeoutId);
         console.warn(`Toggle failed for ${dev.name}:`, err);
 
-        // 4. Failed: Hardware is off/unreachable. Revert and lock as offline immediately
         dev._isVerifying = false;
         dev.isOnline = false;
         saveState();
         render();
 
-        alert(`⚠️ Could not reach "${dev.name}". Device is powered off or disconnected. Switch has been locked.`);
+        alert(`⚠️ Could not reach "${dev.name}". Device is unpowered or offline.`);
+      }
+    }
+
+    function toggleDrawer(index) {
+      if (devices[index].isOnline === false) return;
+      openDrawerIndex = openDrawerIndex === index ? null : index;
+      render();
+    }
+
+    function shareDevice(index) {
+      const dev = devices[index];
+      const expiry = Date.now() + (10 * 60 * 1000);
+      const shareUrl = `${window.location.origin}${window.location.pathname}?add=${encodeURIComponent(dev.name)}&ip=${encodeURIComponent(dev.ip)}&exp=${expiry}`;
+
+      if (navigator.share) {
+        navigator.share({ title: `NARI Switch: ${dev.name}`, url: shareUrl }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          alert("10-Minute Share Link Copied!");
+        });
+      }
+    }
+
+    function deleteDevice(index) {
+      if (confirm(`Remove switch "${devices[index].name}"?`)) {
+        devices.splice(index, 1);
+        saveState();
+        render();
       }
     }
 
@@ -636,20 +813,13 @@
         voiceOff: "light off", 
         clapProfile: null, 
         clapCadence: "single",
+        bgPhoto: null,
         isOnline: true
       });
       saveState();
       render();
       pollAllDevicesHealth();
       closeModal();
-    }
-
-    function deleteDevice(index) {
-      if (confirm(`Remove switch "${devices[index].name}"?`)) {
-        devices.splice(index, 1);
-        saveState();
-        render();
-      }
     }
 
     function updateVoiceCommand(index, type, text) {
@@ -664,7 +834,7 @@
       handleModeChange(index, "trained-clap");
     }
 
-    // --- SENSOR MODES (Acoustic / Gestures) ---
+    // Audio & Gestures Engine
     async function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -725,9 +895,9 @@
 
       if (meterBox) meterBox.style.display = "block";
       btn.classList.add("listening");
-      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Clap 1 of 5...`;
+      btn.innerHTML = `Clap 1 of 5...`;
       feedback.style.display = "flex";
-      feedback.innerHTML = `<span class="ai-badge" style="background:#f59e0b; color:white;">TRAINING</span> <span>Clap 1 now...</span>`;
+      feedback.innerHTML = `<span class="ai-badge" style="background:#f59e0b; color:white;">TRAINING</span> <span>Clap now...</span>`;
 
       const timeData = new Uint8Array(analyser.fftSize);
       const freqData = new Uint8Array(analyser.frequencyBinCount);
@@ -735,7 +905,6 @@
 
       const trainLoop = () => {
         if (!isTrainingClap) return;
-
         analyser.getByteTimeDomainData(timeData);
         analyser.getByteFrequencyData(freqData);
 
@@ -743,7 +912,7 @@
         const visualPct = Math.min(100, Math.round((fp.peak / 45) * 100));
         if (meterBar) {
           meterBar.style.width = `${visualPct}%`;
-          meterBar.style.background = fp.peak > 14 ? '#10b981' : '#38bdf8';
+          meterBar.style.background = fp.peak > 14 ? '#10b981' : '#34d399';
         }
 
         if (fp.peak > 14 && fp.crest > 2.5 && armed) {
@@ -752,8 +921,8 @@
           const count = clapTrainingBuffer.length;
 
           if (count < 5) {
-            btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Clap ${count + 1} of 5...`;
-            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">SAVED ${count}</span> <span>Clap again (${count + 1} of 5)...</span>`;
+            btn.innerHTML = `Clap ${count + 1} of 5...`;
+            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">SAVED ${count}</span> <span>Clap again...</span>`;
           } else {
             const profile = new Array(16).fill(0);
             for (let i = 0; i < 5; i++) {
@@ -890,7 +1059,7 @@
 
           if (meterBar) {
             meterBar.style.width = `${Math.min(100, Math.round((fp.peak / 45) * 100))}%`;
-            meterBar.style.background = matchScore > 0.65 ? '#10b981' : '#38bdf8';
+            meterBar.style.background = matchScore > 0.65 ? '#10b981' : '#34d399';
           }
 
           const now = Date.now();
@@ -968,7 +1137,6 @@
       }
     }
 
-    checkUrlPairing();
     render();
     pollAllDevicesHealth();
   </script>
