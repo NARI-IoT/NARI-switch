@@ -51,6 +51,7 @@
 
     .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 18px; }
     
+    /* Device Card Base */
     .card { 
       background: var(--card-bg); 
       border: 1px solid var(--card-border); 
@@ -61,8 +62,19 @@
       justify-content: space-between; 
       box-shadow: 0 10px 25px -5px rgba(0,0,0,0.45); 
       cursor: pointer; 
-      transition: border-color 0.2s; 
+      transition: all 0.3s ease; 
       user-select: none;
+      position: relative;
+    }
+
+    /* Dimmed Offline State */
+    .card.device-offline {
+      opacity: 0.45;
+      filter: grayscale(0.85);
+      border-color: rgba(239, 68, 68, 0.25);
+    }
+    .card.device-offline:hover {
+      cursor: not-allowed;
     }
     
     .card-main { display: flex; justify-content: space-between; align-items: center; width: 100%; }
@@ -70,13 +82,27 @@
     .icon-box { width: 48px; height: 48px; border-radius: 14px; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: var(--text-muted); transition: 0.3s; }
     .icon-box.active { background: rgba(16, 185, 129, 0.18); color: var(--success); }
     .dev-info h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 2px; }
-    .dev-info p { font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
-    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; }
+    .dev-info p { font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+    
+    /* Status indicators */
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .status-online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .status-offline { background: var(--danger); }
     
     .dev-actions { display: flex; align-items: center; gap: 8px; }
-    .btn-toggle { min-width: 65px; padding: 10px 16px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 0.85rem; }
+    .btn-toggle { min-width: 74px; padding: 10px 14px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 0.82rem; }
     .btn-off { background: #334155; color: #94a3b8; }
     .btn-on { background: var(--success); color: white; }
+    
+    /* Disabled Offline Button */
+    .btn-toggle.btn-disabled {
+      background: #1e293b;
+      color: #64748b;
+      cursor: not-allowed;
+      pointer-events: none;
+      box-shadow: none;
+    }
+
     .btn-share { background: #1e293b; border: 1px solid var(--card-border); color: var(--accent); width: 34px; height: 34px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
     .btn-del { background: transparent; border: none; color: var(--danger); font-size: 1.2rem; cursor: pointer; padding: 6px; }
 
@@ -213,7 +239,6 @@
   </div>
 
   <script>
-    // --- FIREBASE CONFIGURATION (Using your newly generated key) ---
     const firebaseConfig = {
       apiKey: "AIzaSyDdWakuiPRF2ucBnEtJ2s77e0Gf7MK2djs",
       authDomain: "nari-smart-home.firebaseapp.com",
@@ -248,6 +273,7 @@
     let isTrainingClap = false;
     let clapTrainingBuffer = [];
 
+    // --- AUTHENTICATION & CLOUD SYNC ---
     if (auth) {
       auth.onAuthStateChanged(async (user) => {
         currentUser = user;
@@ -319,6 +345,46 @@
       }
     }
 
+    // --- HARDWARE POWER / REACHABILITY CHECKER ---
+    async function checkDeviceHealth(dev) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2200); // 2.2s timeout
+
+      try {
+        // Fast probe to ESP (ping or state endpoint)
+        await fetch(`http://${dev.ip}/ping`, { 
+          method: 'GET', 
+          mode: 'no-cors', 
+          signal: controller.signal 
+        });
+        clearTimeout(timeoutId);
+        return true;
+      } catch (e) {
+        clearTimeout(timeoutId);
+        return false;
+      }
+    }
+
+    async function pollAllDevicesHealth() {
+      if (devices.length === 0) return;
+      let stateChanged = false;
+
+      for (let i = 0; i < devices.length; i++) {
+        const isOnline = await checkDeviceHealth(devices[i]);
+        if (devices[i].isOnline !== isOnline) {
+          devices[i].isOnline = isOnline;
+          stateChanged = true;
+        }
+      }
+
+      if (stateChanged) {
+        render();
+      }
+    }
+
+    // Poll switch reachability every 5 seconds
+    setInterval(pollAllDevicesHealth, 5000);
+
     function checkUrlPairing() {
       const params = new URLSearchParams(window.location.search);
       const addName = params.get('add');
@@ -343,7 +409,8 @@
             voiceOn: "light on",
             voiceOff: "light off",
             clapProfile: null,
-            clapCadence: "single"
+            clapCadence: "single",
+            isOnline: true
           });
           saveState();
           alert(`Added "${decodeURIComponent(addName)}"!`);
@@ -374,6 +441,8 @@
     }
 
     function toggleDrawer(index) {
+      // Don't open options if device is powered off
+      if (devices[index].isOnline === false) return;
       openDrawerIndex = openDrawerIndex === index ? null : index;
       render();
     }
@@ -408,17 +477,20 @@
       }
 
       devices.forEach((dev, index) => {
-        const isOpen = openDrawerIndex === index;
+        const isOnline = dev.isOnline !== false; // defaults to true initially
+        const isOpen = openDrawerIndex === index && isOnline;
         const currentMode = dev.mode || "none";
         const voiceOn = dev.voiceOn !== undefined ? dev.voiceOn : "light on";
         const voiceOff = dev.voiceOff !== undefined ? dev.voiceOff : "light off";
         const clapCadence = dev.clapCadence || "single";
         const hasTrainedClap = dev.clapProfile && dev.clapProfile.length > 0;
+        
         const card = document.createElement("div");
-        card.className = "card";
+        card.className = `card ${isOnline ? '' : 'device-offline'}`;
         card.id = `card-${index}`;
         
         card.onclick = (e) => {
+          if (!isOnline) return;
           if (e.target.closest('.dev-actions') || e.target.closest('.sensor-drawer')) return;
           toggleDrawer(index);
         };
@@ -426,17 +498,25 @@
         card.innerHTML = `
           <div class="card-main">
             <div class="dev-left">
-              <div class="icon-box ${dev.state ? 'active' : ''}" id="icon-${index}">
-                <i class="fa-solid ${dev.state ? 'fa-lightbulb' : 'fa-power-off'}"></i>
+              <div class="icon-box ${dev.state && isOnline ? 'active' : ''}" id="icon-${index}">
+                <i class="fa-solid ${!isOnline ? 'fa-plug-circle-xmark' : (dev.state ? 'fa-lightbulb' : 'fa-power-off')}"></i>
               </div>
               <div class="dev-info">
                 <h3>${dev.name}</h3>
-                <p><span class="status-dot"></span>${dev.ip}</p>
+                <p>
+                  <span class="status-dot ${isOnline ? 'status-online' : 'status-offline'}"></span>
+                  ${isOnline ? `${dev.ip}` : `Powered Off (${dev.ip})`}
+                </p>
               </div>
             </div>
             <div class="dev-actions">
-              <button class="btn-toggle ${dev.state ? 'btn-on' : 'btn-off'}" id="btn-toggle-${index}" onclick="event.stopPropagation(); toggleDevice(${index});">
-                ${dev.state ? 'ON' : 'OFF'}
+              <button 
+                class="btn-toggle ${!isOnline ? 'btn-disabled' : (dev.state ? 'btn-on' : 'btn-off')}" 
+                id="btn-toggle-${index}" 
+                onclick="event.stopPropagation(); ${isOnline ? `toggleDevice(${index});` : ''}"
+                ${!isOnline ? 'disabled' : ''}
+                title="${isOnline ? 'Toggle Switch' : 'Device is offline / powered off'}">
+                ${!isOnline ? 'OFFLINE' : (dev.state ? 'ON' : 'OFF')}
               </button>
               <button class="btn-share" onclick="event.stopPropagation(); shareDevice(${index});" title="Share with family (10-min link)">
                 <i class="fa-solid fa-share-nodes"></i>
@@ -445,7 +525,7 @@
             </div>
           </div>
 
-          <div class="hint-label">${isOpen ? '▲ Collapse options' : '▼ Tap card to open AI & sensor modes'}</div>
+          <div class="hint-label">${!isOnline ? '✕ Device disconnected from power' : (isOpen ? '▲ Collapse options' : '▼ Tap card to open AI & sensor modes')}</div>
           
           <div class="sensor-drawer ${isOpen ? 'open' : ''}">
             <div class="drawer-title">
@@ -515,13 +595,27 @@
       const name = document.getElementById("devName").value.trim();
       const ip = document.getElementById("devIp").value.trim();
       if (!name || !ip) return alert("Fill in both fields.");
-      devices.push({ name, ip, state: false, mode: "none", voiceOn: "light on", voiceOff: "light off", clapProfile: null, clapCadence: "single" });
+      devices.push({ 
+        name, 
+        ip, 
+        state: false, 
+        mode: "none", 
+        voiceOn: "light on", 
+        voiceOff: "light off", 
+        clapProfile: null, 
+        clapCadence: "single",
+        isOnline: true
+      });
       saveState();
       render();
+      pollAllDevicesHealth();
       closeModal();
     }
 
     function updateDeviceUI(index, state) {
+      const dev = devices[index];
+      if (dev.isOnline === false) return; // Prevent updating UI if offline
+
       const btn = document.getElementById(`btn-toggle-${index}`);
       const iconBox = document.getElementById(`icon-${index}`);
       if (btn) {
@@ -534,16 +628,29 @@
       }
     }
 
-    function sendCommand(index, state) {
+    async function sendCommand(index, state) {
       const dev = devices[index];
+      if (dev.isOnline === false) {
+        alert(`Cannot send command: "${dev.name}" is currently powered off.`);
+        return;
+      }
+
       dev.state = state;
       saveState();
       updateDeviceUI(index, state);
       if (navigator.vibrate) navigator.vibrate(60);
-      fetch(`http://${dev.ip}/toggle?state=${state ? 1 : 0}`, { mode: 'cors' }).catch(() => {});
+
+      try {
+        await fetch(`http://${dev.ip}/toggle?state=${state ? 1 : 0}`, { mode: 'cors' });
+      } catch (err) {
+        console.warn(`Device ${dev.name} failed to respond:`, err);
+        // If device failed to respond to toggle, verify if it went down
+        pollAllDevicesHealth();
+      }
     }
 
     function toggleDevice(index) {
+      if (devices[index].isOnline === false) return;
       sendCommand(index, !devices[index].state);
     }
 
@@ -556,6 +663,7 @@
       }
     }
 
+    // --- SENSOR & AUDIO HANDLING ---
     async function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -700,7 +808,7 @@
       if (voiceBox) voiceBox.style.display = "none";
       if (trainerBox) trainerBox.style.display = "none";
 
-      if (mode === "none") {
+      if (mode === "none" || devices[index].isOnline === false) {
         if (feedback) feedback.style.display = "none";
         return;
       }
@@ -948,6 +1056,8 @@
 
     checkUrlPairing();
     render();
+    // Run an immediate health check on page load
+    pollAllDevicesHealth();
   </script>
 </body>
 </html>
