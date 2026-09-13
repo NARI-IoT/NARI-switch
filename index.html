@@ -252,7 +252,6 @@
     .theme-tile { padding: 10px; border-radius: 8px; border: 1px solid var(--card-border); display: flex; align-items: center; gap: 8px; font-size: 0.78rem; cursor: pointer; }
     .swatch { width: 16px; height: 16px; border-radius: 50%; }
 
-    /* Voice, Clap & Proximity Controls */
     .mode-subbox { display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); }
     .mode-subbox label { font-size: 0.72rem; color: var(--accent); display: flex; justify-content: space-between; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
@@ -268,6 +267,10 @@
     .scan-status-box { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 8px; text-align: center; }
     .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
     .progress-fill { width: 0%; height: 100%; background: var(--primary); transition: width 0.15s linear; }
+
+    .subnet-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+    .chip { background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); color: var(--accent); font-size: 0.68rem; padding: 3px 8px; border-radius: 6px; cursor: pointer; }
+    .chip:hover { background: rgba(52, 211, 153, 0.2); }
   </style>
 </head>
 <body>
@@ -286,21 +289,35 @@
   <div class="sync-status" id="syncStatus">Storage: Local</div>
   <div class="container" id="deviceList"></div>
 
-  <!-- Auto Discovery Scanner Modal -->
+  <!-- Auto Discovery & Direct IP Pair Modal -->
   <div class="modal-overlay" id="scanModal">
     <div class="modal-box">
       <div class="modal-header">
-        <span>Find Local Switches</span>
+        <span>Connect Smart Switch</span>
         <button class="btn-close" onclick="closeScanModal()">✕</button>
       </div>
       
-      <p style="font-size:0.75rem; color:var(--text-muted);">
-        Sweeps your router subnet for active ESP switches and pairs them automatically.
-      </p>
-
+      <!-- Option 1: Direct IP entry -->
       <div class="form-group">
-        <label>Router IP Range:</label>
+        <label>Direct Local IP (Instant Connect):</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="directIpInput" placeholder="e.g. 192.168.1.50">
+          <button class="btn-primary" style="padding:9px 12px; white-space:nowrap;" onclick="addDirectIp()">Add</button>
+        </div>
+      </div>
+
+      <div style="text-align:center; font-size:0.7rem; color:var(--text-muted); margin:2px 0;">— OR AUTO-DISCOVER —</div>
+
+      <!-- Option 2: Subnet Auto Scan -->
+      <div class="form-group">
+        <label>Router Subnet Range:</label>
         <input type="text" id="subnetPrefix" value="192.168.1" placeholder="e.g. 192.168.1">
+        <div class="subnet-chips">
+          <span class="chip" onclick="setSubnet('192.168.1')">192.168.1</span>
+          <span class="chip" onclick="setSubnet('192.168.0')">192.168.0</span>
+          <span class="chip" onclick="setSubnet('192.168.29')">192.168.29 (Jio)</span>
+          <span class="chip" onclick="setSubnet('192.168.43')">192.168.43 (Hotspot)</span>
+        </div>
       </div>
 
       <button class="btn-primary" id="btnStartScan" onclick="startSubnetScan()">
@@ -316,7 +333,7 @@
     </div>
   </div>
 
-  <!-- Bulb Icon Settings Modal -->
+  <!-- Bulb Settings Modal -->
   <div class="modal-overlay" id="bulbSettingsModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -351,7 +368,7 @@
     </div>
   </div>
 
-  <!-- AI & Gesture Modes Modal (All Modes Restored) -->
+  <!-- AI & Gesture Modes Modal -->
   <div class="modal-overlay" id="aiModesModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -372,7 +389,6 @@
         </select>
       </div>
 
-      <!-- Auto Proximity Config -->
       <div class="mode-subbox" id="proximityConfig" style="display:none;">
         <label>
           <span>Presence Distance Trigger</span>
@@ -384,19 +400,17 @@
         </p>
       </div>
 
-      <!-- Custom Voice Config -->
       <div class="mode-subbox" id="voiceConfig" style="display:none;">
         <div class="form-group">
           <label>Command for ON:</label>
-          <input type="text" id="voiceOnInput" placeholder="e.g. fan on, activate" oninput="updateVoiceText('on', this.value)">
+          <input type="text" id="voiceOnInput" placeholder="e.g. light on, activate" oninput="updateVoiceText('on', this.value)">
         </div>
         <div class="form-group">
           <label>Command for OFF:</label>
-          <input type="text" id="voiceOffInput" placeholder="e.g. fan off, sleep" oninput="updateVoiceText('off', this.value)">
+          <input type="text" id="voiceOffInput" placeholder="e.g. light off, sleep" oninput="updateVoiceText('off', this.value)">
         </div>
       </div>
 
-      <!-- Clap Training Config -->
       <div class="mode-subbox" id="clapConfig" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span style="font-size:0.72rem; color:var(--accent); font-weight:600;">Hand Biometric Profile:</span>
@@ -445,33 +459,7 @@
   </div>
 
   <script>
-    // --- COMMERCIAL SECURITY: ANTI-DEBUGGER & INSPECTION BLOCK ---
-    (function protectProduction() {
-      setInterval(() => {
-        const start = performance.now();
-        debugger;
-        if (performance.now() - start > 100) {
-          document.body.innerHTML = "<h3 style='color:#ef4444;text-align:center;margin-top:25%'>Security Violation: Developer Tools Not Allowed</h3>";
-          window.location.reload();
-        }
-      }, 1000);
-
-      document.addEventListener('contextmenu', (e) => {
-        if (!e.target.closest('.card')) e.preventDefault();
-      });
-
-      document.addEventListener('keydown', (e) => {
-        if (
-          e.key === "F12" || 
-          (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C")) ||
-          (e.ctrlKey && e.key === "u")
-        ) {
-          e.preventDefault();
-          return false;
-        }
-      });
-    })();
-
+    // Security Key (Matches firmware query verification)
     const NARI_AUTH_TOKEN = "NARI_SEC_98a7df8a7sdf6a5sd4f";
 
     const firebaseConfig = {
@@ -495,7 +483,6 @@
     let idleTimer = null;
     let isScanning = false;
 
-    // Acoustic & Sensor Engines
     let audioCtx = null;
     let micStream = null;
     let analyser = null;
@@ -586,7 +573,6 @@
       }
     }
 
-    // --- 10-MINUTE EXPIRY URL PAIRING PARSER ---
     function checkUrlPairing() {
       const params = new URLSearchParams(window.location.search);
       const addName = params.get('add');
@@ -596,7 +582,7 @@
       if (addName && addIp) {
         const now = Date.now();
         if (!expiresAt || isNaN(expiresAt) || now > expiresAt) {
-          alert("Pairing link expired (10-minute security limit). Ask the owner for a fresh link.");
+          alert("Pairing link expired (10-minute security limit).");
           window.history.replaceState({}, document.title, window.location.pathname);
           return;
         }
@@ -623,15 +609,16 @@
       }
     }
 
+    // Health check using query param token to avoid CORS preflight blocks
     async function checkDeviceHealth(dev) {
       const controller = new AbortController();
       const startT = performance.now();
-      const timeoutId = setTimeout(() => controller.abort(), 1600);
+      const timeoutId = setTimeout(() => controller.abort(), 1400);
 
       try {
-        const res = await fetch(`http://${dev.ip}/ping`, { 
-          method: 'GET', 
-          headers: { 'X-NARI-KEY': NARI_AUTH_TOKEN },
+        const res = await fetch(`http://${dev.ip}/ping?k=${NARI_AUTH_TOKEN}`, { 
+          method: 'GET',
+          mode: 'cors',
           signal: controller.signal 
         });
         clearTimeout(timeoutId);
@@ -641,10 +628,9 @@
           const txt = await res.text();
           const rssiVal = parseInt(txt, 10);
           dev.wifiRssi = isNaN(rssiVal) ? -55 : rssiVal;
-        } else {
-          dev.wifiRssi = -60;
+          return true;
         }
-        return true;
+        return false;
       } catch (e) {
         clearTimeout(timeoutId);
         dev.wifiRssi = null;
@@ -686,12 +672,6 @@
     }
 
     function openScanModal() {
-      if (devices.length > 0 && devices[0].ip) {
-        const parts = devices[0].ip.split('.');
-        if (parts.length === 4) {
-          document.getElementById("subnetPrefix").value = `${parts[0]}.${parts[1]}.${parts[2]}`;
-        }
-      }
       document.getElementById("scanStatusBox").style.display = "none";
       document.getElementById("btnStartScan").disabled = false;
       document.getElementById("btnStartScan").innerHTML = `<i class="fa-solid fa-satellite-dish"></i> Start Discovery Scan`;
@@ -702,13 +682,53 @@
       document.getElementById("scanModal").style.display = "none";
     }
 
+    function setSubnet(val) {
+      document.getElementById("subnetPrefix").value = val;
+    }
+
+    // Direct manual entry fallback
+    async function addDirectIp() {
+      const ip = document.getElementById("directIpInput").value.trim();
+      if (!ip) return alert("Please enter a valid IP address.");
+
+      const probe = await probeIp(ip);
+      if (probe.found) {
+        if (!devices.some(d => d.ip === ip)) {
+          devices.push({
+            name: `Switch ${devices.length + 1}`,
+            ip: ip,
+            state: false,
+            mode: "none",
+            voiceOn: "light on",
+            voiceOff: "light off",
+            clapProfile: null,
+            clapCadence: "single",
+            bootState: "LAST",
+            bgPhoto: null,
+            proximityThreshold: 65,
+            wifiRssi: probe.rssi,
+            isOnline: true
+          });
+          saveState();
+          render();
+          alert(`✓ Switch at ${ip} added successfully!`);
+          closeScanModal();
+        } else {
+          alert("Device with this IP already exists.");
+        }
+      } else {
+        alert(`Could not connect to ${ip}. Ensure device is powered on and matches your Wi-Fi.`);
+      }
+    }
+
+    // Direct probe without CORS preflight triggers
     async function probeIp(ip) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const timeoutId = setTimeout(() => controller.abort(), 1000);
       try {
-        const res = await fetch(`http://${ip}/ping`, { 
+        const res = await fetch(`http://${ip}/ping?k=${NARI_AUTH_TOKEN}`, { 
           method: 'GET', 
-          headers: { 'X-NARI-KEY': NARI_AUTH_TOKEN },
+          mode: 'cors',
           signal: controller.signal 
         });
         clearTimeout(timeoutId);
@@ -737,7 +757,7 @@
 
       let newlyAdded = 0;
       const totalHosts = 254;
-      const batchSize = 20;
+      const batchSize = 25;
 
       for (let i = 1; i <= totalHosts; i += batchSize) {
         const batch = [];
@@ -747,7 +767,7 @@
 
         const pct = Math.round((i / totalHosts) * 100);
         prog.style.width = `${pct}%`;
-        statusText.innerText = `Scanning ${prefix}.${i} - ${prefix}.${Math.min(i + batchSize, totalHosts)}...`;
+        statusText.innerText = `Sweeping ${prefix}.${i} - ${prefix}.${Math.min(i + batchSize - 1, totalHosts)}...`;
 
         const results = await Promise.all(batch.map(ip => probeIp(ip)));
         results.forEach(res => {
@@ -776,12 +796,15 @@
       }
 
       prog.style.width = `100%`;
-      statusText.innerText = `Scan complete! Added ${newlyAdded} new switch(es).`;
+      statusText.innerText = newlyAdded > 0 
+        ? `Scan complete! Added ${newlyAdded} switch(es).` 
+        : `No devices found on ${prefix}.x. Try another subnet range above.`;
+        
       btn.disabled = false;
       isScanning = false;
       saveState();
       render();
-      setTimeout(closeScanModal, 1200);
+      if (newlyAdded > 0) setTimeout(closeScanModal, 1200);
     }
 
     function render() {
@@ -791,7 +814,7 @@
       if (devices.length === 0) {
         list.innerHTML = `
           <div style="grid-column: span 2; text-align:center; padding:35px 10px; color:var(--text-muted);">
-            <p>No switches found.<br>Tap <b>+</b> to discover switches on your Wi-Fi.</p>
+            <p>No switches found.<br>Tap <b>+</b> to discover or enter your switch IP.</p>
           </div>
         `;
         return;
@@ -878,13 +901,13 @@
       const timeoutId = setTimeout(() => controller.abort(), 1800);
 
       try {
-        const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}`, {
+        const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
           method: 'GET',
-          headers: { 'X-NARI-KEY': NARI_AUTH_TOKEN },
+          mode: 'cors',
           signal: controller.signal
         });
         clearTimeout(timeoutId);
-        if (!res.ok) throw new Error("Hardware Authentication Failed");
+        if (!res.ok) throw new Error("Authentication Failed");
 
         dev.state = targetState;
         dev.isOnline = true;
@@ -898,7 +921,7 @@
         dev.isOnline = false;
         saveState();
         render();
-        alert(`⚠️ Could not reach "${dev.name}". Hardware is powered off.`);
+        alert(`⚠️ Could not reach "${dev.name}". Hardware is offline.`);
       }
     }
 
@@ -917,7 +940,6 @@
       if (!isVisible) menu.classList.add('show');
     }
 
-    // --- BULB MODAL SETTINGS ---
     function openBulbModal(index, e) {
       e.stopPropagation();
       activeDeviceIndex = index;
@@ -942,10 +964,7 @@
       dev.bgPhoto = newPhoto || dev.bgPhoto;
 
       try {
-        fetch(`http://${dev.ip}/setBootState?mode=${newBoot}`, {
-          method: 'GET',
-          headers: { 'X-NARI-KEY': NARI_AUTH_TOKEN }
-        }).catch(() => {});
+        fetch(`http://${dev.ip}/setBootState?mode=${newBoot}&k=${NARI_AUTH_TOKEN}`, { mode: 'cors' }).catch(() => {});
       } catch (e) {}
 
       saveState();
@@ -971,7 +990,6 @@
       render();
     }
 
-    // --- RESTORED ALL AI & GESTURE SENSOR ENGINES ---
     async function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
