@@ -111,15 +111,14 @@
       justify-content: center; 
       font-size: 0.95rem; 
       cursor: pointer; 
-      transition: transform 0.3s var(--ease-120fps), background 0.3s ease; 
-      will-change: transform;
+      transition: transform 0.3s var(--ease-120fps); 
     }
     .btn-circle-top:active { transform: scale(0.9); }
     .btn-circle-top.btn-gear { background: rgba(255, 255, 255, 0.07); color: var(--accent); border: 1px solid var(--card-border); }
 
     .sync-status { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 12px; text-align: right; width: 100%; max-width: 440px; }
 
-    /* Compact 2-Column Grid */
+    /* Compact Fixed 2-Column Grid */
     .container { 
       width: 100%; 
       max-width: 440px; 
@@ -128,17 +127,15 @@
       gap: 12px; 
     }
 
-    /* Fixed Aspect Ratio Smart Card Container */
+    /* Fixed Aspect Ratio Wrapper - NEVER SPANS 2 COLUMNS */
     .card-wrapper {
       display: flex;
       flex-direction: column;
       width: 100%;
-      transition: all 0.5s var(--ease-120fps);
-    }
-    .card-wrapper.expanded {
-      grid-column: span 2; /* Expands smoothly across full width when drawer opens */
+      position: relative;
     }
 
+    /* Square Smart Card */
     .card { 
       background: var(--card-bg); 
       background-size: cover;
@@ -151,9 +148,10 @@
       flex-direction: column; 
       justify-content: space-between; 
       height: 156px;
+      width: 100%;
       box-shadow: 0 8px 24px -4px rgba(0,0,0,0.5); 
       cursor: pointer; 
-      transition: transform 0.4s var(--ease-120fps), border-color 0.4s ease, box-shadow 0.4s ease; 
+      transition: transform 0.35s var(--ease-120fps), border-color 0.35s ease, box-shadow 0.35s ease; 
       user-select: none;
       position: relative;
       overflow: hidden;
@@ -170,9 +168,9 @@
       transition: background 0.6s var(--ease-120fps);
       z-index: 1;
     }
-    .card > * { position: relative; z-index: 2; transition: opacity 0.5s var(--ease-120fps); }
+    .card > * { position: relative; z-index: 2; transition: opacity 0.45s var(--ease-120fps); }
 
-    /* Idle Inactive State (Ultra-smooth fade & frosted glass) */
+    /* Idle Inactive State */
     .card.idle-fade::before { background: rgba(8, 16, 12, 0.12); }
     .card.idle-fade .fading-label { opacity: 0; pointer-events: none; }
     .card.idle-fade .slider {
@@ -206,7 +204,7 @@
 
     .top-right-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; position: relative; }
 
-    /* Pill Slider with 120Hz Animation */
+    /* Pill Slider */
     .switch-wrap { position: relative; display: inline-block; width: 44px; height: 24px; }
     .switch-wrap input { opacity: 0; width: 0; height: 0; }
     .slider {
@@ -278,7 +276,6 @@
       align-items: center;
       gap: 6px;
       cursor: pointer;
-      transition: background 0.2s ease;
     }
     .edit-menu-item:hover { background: rgba(52, 211, 153, 0.15); color: var(--accent); }
     .edit-menu-item.danger { color: #fca5a5; }
@@ -304,51 +301,57 @@
     .drawer-trigger:hover { transform: scale(1.04); }
     .wifi-badge { font-size: 0.68rem; color: var(--accent); display: flex; align-items: center; gap: 3px; }
 
-    /* EMBEDDED CARD DROPDOWN DRAWER */
+    /* EQUAL-SIZE SQUARE AI MODES DROPDOWN DRAWER UNDER CARD */
     .card-dropdown-drawer {
       max-height: 0;
       opacity: 0;
       overflow: hidden;
-      background: rgba(18, 36, 27, 0.96);
+      background: rgba(18, 36, 27, 0.98);
       border: 1px solid transparent;
-      border-radius: 14px;
+      border-radius: 20px;
       margin-top: 6px;
-      padding: 0 12px;
+      padding: 0 10px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      transition: max-height 0.55s var(--ease-120fps), opacity 0.45s var(--ease-120fps), border-color 0.45s ease, padding 0.55s var(--ease-120fps);
+      gap: 8px;
+      transition: max-height 0.45s var(--ease-120fps), opacity 0.4s var(--ease-120fps), padding 0.45s var(--ease-120fps), border-color 0.4s ease;
       will-change: max-height, opacity;
+      width: 100%;
     }
     .card-dropdown-drawer.open {
-      max-height: 520px;
+      max-height: 156px; /* Exactly matches smart card square height */
+      height: 156px;
       opacity: 1;
       border-color: var(--card-border);
-      padding: 12px;
+      padding: 10px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent) transparent;
     }
+    .card-dropdown-drawer::-webkit-scrollbar { width: 4px; }
+    .card-dropdown-drawer::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
 
-    /* Sub-Boxes inside Drawer */
     .mode-subbox { 
       display: flex; 
       flex-direction: column; 
-      gap: 8px; 
+      gap: 6px; 
       background: rgba(0,0,0,0.3); 
-      padding: 10px; 
+      padding: 8px; 
       border-radius: 10px; 
       border: 1px solid var(--card-border); 
     }
-    .mode-subbox label { font-size: 0.72rem; color: var(--accent); display: flex; justify-content: space-between; }
+    .mode-subbox label { font-size: 0.68rem; color: var(--accent); display: flex; justify-content: space-between; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
 
-    /* Modals & Dialogs */
+    /* Modals */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none; justify-content: center; align-items: center; padding: 16px; z-index: 100; backdrop-filter: blur(4px); }
     .modal-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px; width: 100%; max-width: 380px; padding: 18px; display: flex; flex-direction: column; gap: 11px; max-height: 90vh; overflow-y: auto; box-shadow: 0 16px 36px rgba(0,0,0,0.7); }
     .modal-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 0.95rem; }
     .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.15rem; cursor: pointer; }
     
-    input[type=text], select { background: rgba(0,0,0,0.35); border: 1px solid var(--card-border); color: white; padding: 8px 10px; border-radius: 8px; font-size: 0.8rem; outline: none; width: 100%; }
-    .form-group { display: flex; flex-direction: column; gap: 4px; }
-    .form-group label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+    input[type=text], select { background: rgba(0,0,0,0.35); border: 1px solid var(--card-border); color: white; padding: 7px 9px; border-radius: 8px; font-size: 0.76rem; outline: none; width: 100%; }
+    .form-group { display: flex; flex-direction: column; gap: 3px; }
+    .form-group label { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
 
     .btn-primary { 
       background: var(--primary); 
@@ -362,7 +365,7 @@
       align-items: center; 
       justify-content: center; 
       gap: 6px; 
-      font-size: 0.82rem; 
+      font-size: 0.8rem; 
       transition: transform 0.25s var(--ease-120fps); 
     }
     .btn-primary:active { transform: scale(0.96); }
@@ -378,48 +381,39 @@
       align-items: center; 
       justify-content: center; 
       gap: 6px; 
-      font-size: 0.76rem; 
+      font-size: 0.74rem; 
       text-decoration: none; 
-      transition: background 0.2s ease;
     }
-    .btn-secondary:hover { background: rgba(255, 255, 255, 0.14); }
 
     /* Compass Matrix for 8 Directions */
-    .compass-matrix {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-top: 4px;
-    }
+    .compass-matrix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 2px; }
     .matrix-node {
       background: rgba(255,255,255,0.04);
       border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 6px 4px;
+      border-radius: 6px;
+      padding: 4px 2px;
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
-      gap: 3px;
+      gap: 2px;
       transition: all 0.3s var(--ease-120fps);
     }
     .matrix-node.active-direction {
       background: rgba(52, 211, 153, 0.2);
       border-color: var(--accent);
       transform: scale(1.04);
-      box-shadow: 0 0 10px rgba(52, 211, 153, 0.4);
+      box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
     }
-    .matrix-title { font-size: 0.65rem; font-weight: 700; color: var(--accent); }
-    .matrix-node select { font-size: 0.65rem; padding: 3px; }
+    .matrix-title { font-size: 0.6rem; font-weight: 700; color: var(--accent); }
+    .matrix-node select { font-size: 0.6rem; padding: 2px; }
 
-    .meter-container { width: 100%; height: 6px; background: #0b1a13; border-radius: 3px; overflow: hidden; position: relative; border: 1px solid var(--card-border); }
+    .meter-container { width: 100%; height: 5px; background: #0b1a13; border-radius: 3px; overflow: hidden; position: relative; border: 1px solid var(--card-border); }
     .meter-bar { width: 0%; height: 100%; background: var(--accent); transition: width 0.05s linear; }
-    .btn-train-clap { padding: 7px; background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); border-radius: 7px; color: white; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-train-clap { padding: 6px; background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); border-radius: 7px; color: white; font-size: 0.68rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
     .btn-train-clap.listening { background: #dc2626; animation: pulse 1s infinite alternate; }
 
-    .sensor-feedback { font-size: 0.72rem; color: #fbbf24; display: flex; align-items: center; gap: 6px; font-weight: 500; }
-    .ai-badge { display: inline-block; padding: 2px 5px; border-radius: 4px; background: rgba(52, 211, 153, 0.16); color: var(--accent); font-size: 0.66rem; font-weight: 700; }
-
+    .sensor-feedback { font-size: 0.68rem; color: #fbbf24; display: flex; align-items: center; gap: 5px; font-weight: 500; }
     .scan-status-box { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 8px; text-align: center; }
     .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
     .progress-fill { width: 0%; height: 100%; background: var(--primary); transition: width 0.2s var(--ease-120fps); }
@@ -564,7 +558,7 @@
     let idleTimer = null;
     let isScanning = false;
 
-    // Sensor & Audio Global Engines
+    // Sensor & Audio Engines
     let audioCtx = null;
     let micStream = null;
     let analyser = null;
@@ -577,7 +571,7 @@
     // 8-Directional 3D Tilt Settings State
     let tiltConfig = JSON.parse(localStorage.getItem("nari_tilt_config") || JSON.stringify({
       threshold: 16,
-      actionType: "toggleOnOff", // 'toggleOnOff' (hold while tilted) or 'toggle' (toggle on tilt)
+      actionType: "toggleOnOff",
       mappings: {
         N: null, NE: null, E: null, SE: null,
         S: null, SW: null, W: null, NW: null
@@ -670,7 +664,6 @@
       }
     }
 
-    // Toggle Drawer Open/Close Under Card
     function toggleCardDrawer(index, e) {
       if (e) e.stopPropagation();
       openDrawerIndex = openDrawerIndex === index ? null : index;
@@ -872,7 +865,7 @@
         const currentMode = dev.mode || "none";
 
         const cardWrapper = document.createElement("div");
-        cardWrapper.className = `card-wrapper ${isOpen ? 'expanded' : ''}`;
+        cardWrapper.className = "card-wrapper";
         cardWrapper.id = `wrapper-${index}`;
 
         const card = document.createElement("div");
@@ -931,121 +924,72 @@
           </div>
         `;
 
-        // EMBEDDED DRAWER DIRECTLY UNDER THIS SMART CARD
+        // SQUARE-SIZED EMBEDDED DRAWER UNDER CARD
         const drawer = document.createElement("div");
         drawer.className = `card-dropdown-drawer ${isOpen ? 'open' : ''}`;
         drawer.id = `drawer-${index}`;
 
         drawer.innerHTML = `
           <div class="form-group">
-            <label style="color:var(--accent); font-weight:700;"><i class="fa-solid fa-brain"></i> Select Mode for ${dev.name}:</label>
+            <label style="color:var(--accent); font-weight:700;"><i class="fa-solid fa-brain"></i> Mode:</label>
             <select onchange="handleModeChange(${index}, this.value)">
               <option value="none" ${currentMode === 'none' ? 'selected' : ''}>Standard Manual</option>
-              <option value="tilt" ${currentMode === 'tilt' ? 'selected' : ''}>3D Tilt Mode (8-Way Room Direction)</option>
-              <option value="auto-proximity" ${currentMode === 'auto-proximity' ? 'selected' : ''}>Auto Proximity (Room Presence)</option>
-              <option value="voice-custom" ${currentMode === 'voice-custom' ? 'selected' : ''}>Voice Commands (en-IN)</option>
-              <option value="trained-clap" ${currentMode === 'trained-clap' ? 'selected' : ''}>Biometric Fingerprint Clap</option>
-              <option value="shake" ${currentMode === 'shake' ? 'selected' : ''}>Gesture: Shake Phone</option>
-              <option value="flicker" ${currentMode === 'flicker' ? 'selected' : ''}>DIY: Auto-Strobe Cycle</option>
+              <option value="tilt" ${currentMode === 'tilt' ? 'selected' : ''}>3D Tilt (8-Way Room)</option>
+              <option value="auto-proximity" ${currentMode === 'auto-proximity' ? 'selected' : ''}>Auto Proximity</option>
+              <option value="voice-custom" ${currentMode === 'voice-custom' ? 'selected' : ''}>Voice (en-IN)</option>
+              <option value="trained-clap" ${currentMode === 'trained-clap' ? 'selected' : ''}>Fingerprint Clap</option>
+              <option value="shake" ${currentMode === 'shake' ? 'selected' : ''}>Shake Phone</option>
+              <option value="flicker" ${currentMode === 'flicker' ? 'selected' : ''}>Auto-Strobe</option>
             </select>
           </div>
 
-          <!-- 8-Directional 3D Tilt Settings Subbox -->
+          <!-- 3D Tilt Settings Subbox -->
           <div class="mode-subbox" id="tilt-box-${index}" style="display: ${currentMode === 'tilt' ? 'flex' : 'none'};">
-            <label>
-              <span>Tilt Angle Sensitivity</span>
-              <b id="tilt-angle-label-${index}">${tiltConfig.threshold}°</b>
-            </label>
+            <label><span>Sensitivity</span><b id="tilt-angle-label-${index}">${tiltConfig.threshold}°</b></label>
             <input type="range" min="8" max="45" value="${tiltConfig.threshold}" oninput="updateTiltThreshold(${index}, this.value)">
 
-            <div class="form-group" style="margin-top:2px;">
-              <label>Tilt Action Behavior:</label>
+            <div class="form-group">
+              <label>Behavior:</label>
               <select onchange="updateTiltActionType(this.value)">
-                <option value="toggleOnOff" ${tiltConfig.actionType === 'toggleOnOff' ? 'selected' : ''}>Toggle ON/OFF (Hold Tilt to stay ON; Flat = OFF)</option>
-                <option value="toggle" ${tiltConfig.actionType === 'toggle' ? 'selected' : ''}>Toggle ON (Flip state on tilt; Flat = No action)</option>
+                <option value="toggleOnOff" ${tiltConfig.actionType === 'toggleOnOff' ? 'selected' : ''}>Hold Tilt = ON | Flat = OFF</option>
+                <option value="toggle" ${tiltConfig.actionType === 'toggle' ? 'selected' : ''}>Tilt = Toggle | Flat = None</option>
               </select>
             </div>
 
-            <label style="margin-top:2px;"><b>Map 8 Directions to Room Switches:</b></label>
+            <label><b>8-Direction Room Map:</b></label>
             <div class="compass-matrix" id="matrix-${index}">
-              <!-- Row 1: NW, N, NE -->
-              <div class="matrix-node" id="node-NW">
-                <span class="matrix-title">↖ NW</span>
-                ${renderDeviceSelector('NW')}
-              </div>
-              <div class="matrix-node" id="node-N">
-                <span class="matrix-title">↑ Front (N)</span>
-                ${renderDeviceSelector('N')}
-              </div>
-              <div class="matrix-node" id="node-NE">
-                <span class="matrix-title">↗ NE</span>
-                ${renderDeviceSelector('NE')}
-              </div>
-              <!-- Row 2: W, Center (0° flat), E -->
-              <div class="matrix-node" id="node-W">
-                <span class="matrix-title">← Left (W)</span>
-                ${renderDeviceSelector('W')}
-              </div>
-              <div class="matrix-node" id="node-CENTER" style="background:rgba(52,211,153,0.1);">
-                <span class="matrix-title" style="color:var(--text-muted);">Flat (0°)</span>
-                <span style="font-size:0.6rem; color:var(--accent);">Level</span>
-              </div>
-              <div class="matrix-node" id="node-E">
-                <span class="matrix-title">→ Right (E)</span>
-                ${renderDeviceSelector('E')}
-              </div>
-              <!-- Row 3: SW, S, SE -->
-              <div class="matrix-node" id="node-SW">
-                <span class="matrix-title">↙ SW</span>
-                ${renderDeviceSelector('SW')}
-              </div>
-              <div class="matrix-node" id="node-S">
-                <span class="matrix-title">↓ Back (S)</span>
-                ${renderDeviceSelector('S')}
-              </div>
-              <div class="matrix-node" id="node-SE">
-                <span class="matrix-title">↘ SE</span>
-                ${renderDeviceSelector('SE')}
-              </div>
+              <div class="matrix-node" id="node-NW"><span class="matrix-title">NW</span>${renderDeviceSelector('NW')}</div>
+              <div class="matrix-node" id="node-N"><span class="matrix-title">Front</span>${renderDeviceSelector('N')}</div>
+              <div class="matrix-node" id="node-NE"><span class="matrix-title">NE</span>${renderDeviceSelector('NE')}</div>
+              <div class="matrix-node" id="node-W"><span class="matrix-title">Left</span>${renderDeviceSelector('W')}</div>
+              <div class="matrix-node" id="node-CENTER" style="background:rgba(52,211,153,0.1);"><span class="matrix-title">0°</span><span style="font-size:0.55rem; color:var(--accent);">Level</span></div>
+              <div class="matrix-node" id="node-E"><span class="matrix-title">Right</span>${renderDeviceSelector('E')}</div>
+              <div class="matrix-node" id="node-SW"><span class="matrix-title">SW</span>${renderDeviceSelector('SW')}</div>
+              <div class="matrix-node" id="node-S"><span class="matrix-title">Back</span>${renderDeviceSelector('S')}</div>
+              <div class="matrix-node" id="node-SE"><span class="matrix-title">SE</span>${renderDeviceSelector('SE')}</div>
             </div>
           </div>
 
           <!-- Proximity Subbox -->
           <div class="mode-subbox" id="prox-box-${index}" style="display: ${currentMode === 'auto-proximity' ? 'flex' : 'none'};">
-            <label><span>Presence Trigger Distance</span><b>${dev.proximityThreshold || 65} ms</b></label>
+            <label><span>Presence Range</span><b>${dev.proximityThreshold || 65} ms</b></label>
             <input type="range" min="20" max="220" value="${dev.proximityThreshold || 65}" oninput="updateProximityVal(${index}, this.value)">
           </div>
 
           <!-- Voice Subbox -->
           <div class="mode-subbox" id="voice-box-${index}" style="display: ${currentMode === 'voice-custom' ? 'flex' : 'none'};">
-            <div class="form-group">
-              <label>Turn ON Phrase:</label>
-              <input type="text" value="${dev.voiceOn || 'light on'}" oninput="updateVoicePhrase(${index}, 'on', this.value)">
-            </div>
-            <div class="form-group">
-              <label>Turn OFF Phrase:</label>
-              <input type="text" value="${dev.voiceOff || 'light off'}" oninput="updateVoicePhrase(${index}, 'off', this.value)">
-            </div>
+            <div class="form-group"><label>ON:</label><input type="text" value="${dev.voiceOn || 'light on'}" oninput="updateVoicePhrase(${index}, 'on', this.value)"></div>
+            <div class="form-group"><label>OFF:</label><input type="text" value="${dev.voiceOff || 'light off'}" oninput="updateVoicePhrase(${index}, 'off', this.value)"></div>
           </div>
 
           <!-- Clap Subbox -->
           <div class="mode-subbox" id="clap-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'flex' : 'none'};">
-            <div style="display:flex; justify-content:space-between;">
-              <span style="font-size:0.72rem; font-weight:600;">Hand Fingerprint:</span>
-              <span style="font-size:0.72rem; color:${dev.clapProfile ? '#10b981' : '#f59e0b'};">
-                ${dev.clapProfile ? '✓ Trained' : 'Not Trained'}
-              </span>
-            </div>
-            <button class="btn-train-clap" id="btn-train-clap-${index}" onclick="startClapTraining(${index})">
-              <i class="fa-solid fa-hands-clapping"></i> Record 5 Claps
-            </button>
-            <div class="meter-container">
-              <div class="meter-bar" id="meter-bar-${index}"></div>
-            </div>
+            <button class="btn-train-clap" id="btn-train-clap-${index}" onclick="startClapTraining(${index})"><i class="fa-solid fa-hands-clapping"></i> Record 5 Claps</button>
+            <div class="meter-container"><div class="meter-bar" id="meter-bar-${index}"></div></div>
           </div>
 
           <div class="sensor-feedback" id="feedback-${index}" style="display: ${currentMode !== 'none' ? 'flex' : 'none'};">
-            <i class="fa-solid fa-satellite-dish"></i> <span id="feedback-text-${index}">Mode Active</span>
+            <i class="fa-solid fa-satellite-dish"></i> <span id="feedback-text-${index}">Active</span>
           </div>
         `;
 
@@ -1059,9 +1003,9 @@
 
     function renderDeviceSelector(dir) {
       const assignedIp = tiltConfig.mappings[dir];
-      let opts = `<option value="">-- None --</option>`;
+      let opts = `<option value="">--</option>`;
       devices.forEach((d) => {
-        opts += `<option value="${d.ip}" ${assignedIp === d.ip ? 'selected' : ''}>${d.name}</option>`;
+        opts += `<option value="${d.ip}" ${assignedIp === d.ip ? 'selected' : ''}>${d.name.slice(0, 7)}</option>`;
       });
       return `<select onchange="updateTiltMapping('${dir}', this.value)">${opts}</select>`;
     }
@@ -1094,8 +1038,8 @@
       saveState();
     }
 
-    // --- 3D TILT CALIBRATION & 8-DIRECTION ORIENTATION ENGINE ---
-    let calibratedPitch = 0; // Flat reference
+    // 3D Tilt Calibration & Orientation Engine
+    let calibratedPitch = 0;
     let calibratedRoll = 0;
 
     function initTiltEngine() {
@@ -1103,30 +1047,21 @@
     }
 
     function handleDeviceTilt(e) {
-      const gamma = e.gamma; // Roll: Left (-90) / Right (+90)
-      const beta = e.beta;   // Pitch: Front (+90) / Back (-90)
-
+      const gamma = e.gamma;
+      const beta = e.beta;
       if (gamma === null || beta === null) return;
 
       const threshold = tiltConfig.threshold || 16;
-
-      // Delta from flat reference
-      const deltaX = gamma - calibratedRoll; // Left/Right tilt
-      const deltaY = beta - calibratedPitch;  // Back/Front tilt
-
+      const deltaX = gamma - calibratedRoll;
+      const deltaY = beta - calibratedPitch;
       const magnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-      // Determine 8-way directional sector using angle theta
       let detectedSector = null;
 
       if (magnitude >= threshold) {
-        // Calculate angle in degrees (0 to 360)
         let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
         if (angle < 0) angle += 360;
 
-        // Sectors divided into 45-degree wedges:
-        // E: 337.5 - 22.5, SE: 22.5 - 67.5, S: 67.5 - 112.5, SW: 112.5 - 157.5
-        // W: 157.5 - 202.5, NW: 202.5 - 247.5, N: 247.5 - 292.5, NE: 292.5 - 337.5
         if (angle >= 337.5 || angle < 22.5) detectedSector = "E";
         else if (angle >= 22.5 && angle < 67.5) detectedSector = "SE";
         else if (angle >= 67.5 && angle < 112.5) detectedSector = "S";
@@ -1137,7 +1072,6 @@
         else if (angle >= 292.5 && angle < 337.5) detectedSector = "NE";
       }
 
-      // Visual UI Matrix Active Node Indication
       document.querySelectorAll('.matrix-node').forEach(n => n.classList.remove('active-direction'));
       if (detectedSector) {
         const node = document.getElementById(`node-${detectedSector}`);
@@ -1149,11 +1083,8 @@
 
       const now = Date.now();
 
-      // EXECUTE TILT ACTION
       if (tiltConfig.actionType === "toggleOnOff") {
-        // Mode 1: Hold While Tilted (Tilted = ON, Flat = OFF)
         if (detectedSector !== currentTiltActiveSector) {
-          // If previous sector was ON, turn it OFF
           if (currentTiltActiveSector && tiltConfig.mappings[currentTiltActiveSector]) {
             const prevIp = tiltConfig.mappings[currentTiltActiveSector];
             const prevIdx = devices.findIndex(d => d.ip === prevIp);
@@ -1162,7 +1093,6 @@
             }
           }
 
-          // If new sector is tilted, turn it ON
           if (detectedSector && tiltConfig.mappings[detectedSector]) {
             const targetIp = tiltConfig.mappings[detectedSector];
             const targetIdx = devices.findIndex(d => d.ip === targetIp);
@@ -1173,8 +1103,6 @@
           currentTiltActiveSector = detectedSector;
         }
       } else {
-        // Mode 2: Latching (Toggle on each tilt event)
-        // Rate-limited by tilt magnitude (deeper tilt triggers faster response)
         const cooldown = Math.max(350, 1000 - Math.round(magnitude * 15));
         if (detectedSector && detectedSector !== currentTiltActiveSector && now - tiltLastTriggerTime > cooldown) {
           tiltLastTriggerTime = now;
@@ -1187,7 +1115,7 @@
             }
           }
         } else if (!detectedSector) {
-          currentTiltActiveSector = null; // Reset to center flat
+          currentTiltActiveSector = null;
         }
       }
     }
@@ -1225,14 +1153,14 @@
       if (feedback) feedback.style.display = "flex";
 
       if (mode === "tilt") {
-        feedbackText.innerText = "Hold phone flat (0°). Tilt in 8 directions to control lights.";
+        feedbackText.innerText = "Tilt in 8 directions to control lights.";
         initTiltEngine();
       }
 
       else if (mode === "voice-custom") {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) {
-          feedbackText.innerText = "Speech Recognition not supported.";
+          feedbackText.innerText = "Speech not supported.";
           return;
         }
 
@@ -1241,7 +1169,7 @@
         voiceRecognizer.interimResults = false;
         voiceRecognizer.lang = 'en-IN';
 
-        feedbackText.innerHTML = `Listening: "<b>${devices[index].voiceOn || 'light on'}</b>" / "<b>${devices[index].voiceOff || 'light off'}</b>"`;
+        feedbackText.innerHTML = `Say "${devices[index].voiceOn || 'light on'}" / "${devices[index].voiceOff || 'light off'}"`;
 
         voiceRecognizer.onresult = (evt) => {
           const heard = evt.results[evt.results.length - 1][0].transcript.toLowerCase().trim();
@@ -1268,12 +1196,12 @@
       else if (mode === "trained-clap") {
         const profile = devices[index].clapProfile;
         if (!profile) {
-          feedbackText.innerText = "Record 5 claps below to train.";
+          feedbackText.innerText = "Record 5 claps below.";
           return;
         }
 
         await initAudio();
-        feedbackText.innerText = "Biometric Clap Active: Listening...";
+        feedbackText.innerText = "Listening for clap...";
 
         const timeData = new Uint8Array(analyser.fftSize);
         const freqData = new Uint8Array(analyser.frequencyBinCount);
@@ -1323,7 +1251,7 @@
       }
 
       else if (mode === "flicker") {
-        feedbackText.innerText = "Auto-strobing relay every 500ms...";
+        feedbackText.innerText = "Strobing relay every 500ms...";
         let st = false;
         diyIntervals[index] = setInterval(() => {
           st = !st;
@@ -1335,7 +1263,7 @@
     async function handleToggleClick(index, checkboxElem) {
       const dev = devices[index];
       const targetState = checkboxElem.checked;
-      checkboxElem.checked = dev.state; // Lock until confirmed
+      checkboxElem.checked = dev.state;
 
       if (dev.isOnline === false) {
         alert(`Cannot toggle: "${dev.name}" is powered off.`);
@@ -1529,7 +1457,7 @@
 
       btn.classList.add("listening");
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Clap 1 of 5...`;
-      feedbackText.innerText = "Listening for personal clap 1...";
+      feedbackText.innerText = "Listening for clap 1...";
 
       const timeData = new Uint8Array(analyser.fftSize);
       const freqData = new Uint8Array(analyser.frequencyBinCount);
@@ -1566,7 +1494,7 @@
             isTrainingClap = false;
             btn.classList.remove("listening");
             btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Retrain Claps`;
-            feedbackText.innerText = "Biometric hand profile saved successfully!";
+            feedbackText.innerText = "Profile active!";
             render();
             handleModeChange(index, "trained-clap");
             return;
@@ -1598,7 +1526,6 @@
       }
     }
 
-    checkUrlPairing();
     render();
     pollAllDevices();
   </script>
