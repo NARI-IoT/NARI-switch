@@ -103,7 +103,6 @@
     }
     .hint-label { font-size: 0.72rem; color: #64748b; margin-top: 4px; text-align: right; }
 
-    /* Dual Custom Voice Command Inputs */
     .custom-voice-box {
       display: none;
       flex-direction: column;
@@ -117,7 +116,6 @@
     .voice-input-row label { font-size: 0.74rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
     .custom-voice-input { background: #141b2d; border: 1px solid var(--card-border); color: var(--accent); padding: 8px 10px; border-radius: 8px; font-size: 0.84rem; outline: none; width: 100%; }
 
-    /* Personal Clap Training & Cadence Panel */
     .clap-trainer-box {
       display: none;
       flex-direction: column;
@@ -170,7 +168,6 @@
       width: auto;
     }
 
-    /* Responsive Level & Match Bar */
     .meter-container { width: 100%; height: 8px; background: #090d16; border-radius: 4px; overflow: hidden; position: relative; display: none; border: 1px solid var(--card-border); }
     .meter-bar { width: 0%; height: 100%; background: #38bdf8; transition: width 0.04s ease-out; }
     .meter-threshold-line { position: absolute; top: 0; bottom: 0; left: 65%; width: 2px; background: #ef4444; }
@@ -200,7 +197,7 @@
     </div>
   </header>
 
-  <div class="sync-status" id="syncStatus">Storage: Local (Sign in with Google to sync across phones)</div>
+  <div class="sync-status" id="syncStatus">Storage: Local (Sign in with Google to sync across devices)</div>
   <div class="container" id="deviceList"></div>
 
   <div class="modal-overlay" id="pairModal">
@@ -216,7 +213,6 @@
   </div>
 
   <script>
-    // --- FIREBASE CONFIGURATION (Integrated from your project) ---
     const firebaseConfig = {
       apiKey: "AIzaSyBT88D5hdOmTLPBkclCSt-mOKF0IXYZZHE",
       authDomain: "nari-smart-home.firebaseapp.com",
@@ -231,11 +227,13 @@
     let auth = null;
 
     try {
-      firebase.initializeApp(firebaseConfig);
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
       auth = firebase.auth();
       db = firebase.firestore();
     } catch (err) {
-      console.warn("Firebase initialization error:", err);
+      console.error("Firebase initialization failed:", err);
     }
 
     let devices = JSON.parse(localStorage.getItem("nari_devices") || "[]");
@@ -249,7 +247,6 @@
     let isTrainingClap = false;
     let clapTrainingBuffer = [];
 
-    // --- AUTHENTICATION & CLOUD SYNC SYSTEM ---
     if (auth) {
       auth.onAuthStateChanged(async (user) => {
         currentUser = user;
@@ -271,14 +268,14 @@
               <i class="fa-brands fa-google"></i> Login
             </button>
           `;
-          syncStatus.innerText = "Storage: Local (Sign in with Google to sync across phones)";
+          syncStatus.innerText = "Storage: Local (Sign in with Google to sync across devices)";
         }
         render();
       });
     }
 
     async function handleGoogleSignIn() {
-      if (!auth) return alert("Firebase is initializing. Please try again.");
+      if (!auth) return alert("Authentication service is not initialized.");
       const provider = new firebase.auth.GoogleAuthProvider();
       try {
         await auth.signInWithPopup(provider);
@@ -321,7 +318,6 @@
       }
     }
 
-    // --- 10-MINUTE EXPIRING LINK CHECK ---
     function checkUrlPairing() {
       const params = new URLSearchParams(window.location.search);
       const addName = params.get('add');
@@ -331,7 +327,7 @@
       if (addName && addIp) {
         const now = Date.now();
         if (!expiresAt || isNaN(expiresAt) || now > expiresAt) {
-          alert("⚠️ Pairing link expired (10-minute security limit). Ask for a fresh link.");
+          alert("Pairing link expired (10-minute security limit). Ask for a fresh link.");
           window.history.replaceState({}, document.title, window.location.pathname);
           return;
         }
@@ -349,7 +345,7 @@
             clapCadence: "single"
           });
           saveState();
-          alert(`✓ Added "${decodeURIComponent(addName)}"!`);
+          alert(`Added "${decodeURIComponent(addName)}"!`);
         }
         window.history.replaceState({}, document.title, window.location.pathname);
       }
@@ -369,7 +365,7 @@
         }).catch(() => {});
       } else {
         navigator.clipboard.writeText(shareUrl).then(() => {
-          alert(`⏱️ 10-Minute Share Link Copied! Send it to your family on home Wi-Fi.`);
+          alert("10-Minute Share Link Copied! Send it to your family on home Wi-Fi.");
         }).catch(() => {
           prompt("Copy this 10-minute pairing link:", shareUrl);
         });
@@ -463,7 +459,6 @@
               <option value="flicker" ${currentMode === 'flicker' ? 'selected' : ''}>DIY: Auto-Strobe Cycle (500ms)</option>
             </select>
 
-            <!-- Dual Custom Voice Commands -->
             <div class="custom-voice-box" id="voice-box-${index}" style="display: ${currentMode === 'voice-custom' ? 'flex' : 'none'};" onclick="event.stopPropagation();">
               <div class="voice-input-row">
                 <label><i class="fa-solid fa-power-off" style="color:var(--success);"></i> Voice Command to Turn ON:</label>
@@ -475,7 +470,6 @@
               </div>
             </div>
 
-            <!-- Personal Clap Profile Trainer -->
             <div class="clap-trainer-box" id="clap-trainer-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'flex' : 'none'};" onclick="event.stopPropagation();">
               <div class="trainer-header">
                 <span><i class="fa-solid fa-fingerprint"></i> Biometric Hand Fingerprint</span>
@@ -499,7 +493,6 @@
               </div>
             </div>
 
-            <!-- Live Level & Match Bar -->
             <div class="meter-container" id="meter-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'block' : 'none'};">
               <div class="meter-bar" id="meter-bar-${index}"></div>
               <div class="meter-threshold-line" title="Trigger Cutoff"></div>
@@ -562,7 +555,6 @@
       }
     }
 
-    // --- AUDIO SYSTEM ---
     async function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -611,7 +603,6 @@
       return dot / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
-    // --- CLAP TRAINING ---
     async function startClapTraining(index) {
       await initAudio();
       isTrainingClap = true;
@@ -685,7 +676,6 @@
       handleModeChange(index, "trained-clap");
     }
 
-    // --- SENSOR MODES ---
     async function handleModeChange(index, mode) {
       devices[index].mode = mode;
       saveState();
@@ -715,7 +705,6 @@
       }
       if (feedback) feedback.style.display = "flex";
 
-      // 1. UNIVERSAL ACCENT-OPTIMIZED VOICE RECOGNIZER
       if (mode === "voice-custom") {
         if (voiceBox) voiceBox.style.display = "flex";
         
@@ -818,7 +807,6 @@
         try { voiceRecognizer.start(); } catch(e) {}
       }
 
-      // 2. PERSONALIZED FINGERPRINT CLAP (SINGLE / DOUBLE)
       else if (mode === "trained-clap") {
         if (trainerBox) trainerBox.style.display = "flex";
         if (meterBox) meterBox.style.display = "block";
@@ -919,7 +907,6 @@
         matchLoop();
       }
 
-      // 3. Shake Gesture
       else if (mode === "shake") {
         feedback.innerHTML = `<i class="fa-solid fa-mobile-screen"></i> <span>Shake phone to toggle</span>`;
         let lastShake = 0;
@@ -934,7 +921,6 @@
         };
       }
 
-      // 4. Wrist Flick Gesture
       else if (mode === "wrist") {
         feedback.innerHTML = `<i class="fa-solid fa-hand"></i> <span>Flick wrist to toggle</span>`;
         let lastFlick = 0;
@@ -949,7 +935,6 @@
         };
       }
 
-      // 5. DIY Auto-Strobe
       else if (mode === "flicker") {
         feedback.innerHTML = `<i class="fa-solid fa-bolt"></i> <span>Strobing every 500ms...</span>`;
         let st = false;
