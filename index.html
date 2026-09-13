@@ -7,6 +7,11 @@
   <meta name="theme-color" content="#090d16">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+  <!-- Firebase Web SDKs (Compat for direct browser execution) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
   <style>
     :root {
       --bg: #090d16;
@@ -24,7 +29,25 @@
     
     header { width: 100%; max-width: 440px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--card-border); }
     .brand { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 700; color: var(--accent); }
-    .btn-add-top { background: var(--primary); color: white; border: none; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    
+    .btn-auth {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+    .btn-add-top { background: var(--primary); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; cursor: pointer; }
+
+    .sync-status { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 12px; text-align: right; width: 100%; max-width: 440px; }
 
     .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 18px; }
     
@@ -134,11 +157,7 @@
       padding-top: 8px;
       border-top: 1px dashed var(--card-border);
     }
-    .clap-cadence-row label {
-      font-size: 0.74rem;
-      color: var(--text-muted);
-      font-weight: 600;
-    }
+    .clap-cadence-row label { font-size: 0.74rem; color: var(--text-muted); font-weight: 600; }
     .select-cadence {
       background: #141b2d;
       border: 1px solid var(--card-border);
@@ -171,9 +190,17 @@
 
   <header>
     <div class="brand"><i class="fa-solid fa-bolt"></i> NARI Smart Home</div>
-    <button class="btn-add-top" onclick="openModal()" title="Add Device"><i class="fa-solid fa-plus"></i></button>
+    <div class="header-actions">
+      <div id="authContainer">
+        <button class="btn-auth" onclick="handleGoogleSignIn()">
+          <i class="fa-brands fa-google"></i> Login
+        </button>
+      </div>
+      <button class="btn-add-top" onclick="openModal()" title="Add Device"><i class="fa-solid fa-plus"></i></button>
+    </div>
   </header>
 
+  <div class="sync-status" id="syncStatus">Storage: Local (Sign in with Google to sync across phones)</div>
   <div class="container" id="deviceList"></div>
 
   <div class="modal-overlay" id="pairModal">
@@ -189,6 +216,28 @@
   </div>
 
   <script>
+    // --- FIREBASE CONFIGURATION (Integrated from your project) ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBT88D5hdOmTLPBkclCSt-mOKF0IXYZZHE",
+      authDomain: "nari-smart-home.firebaseapp.com",
+      projectId: "nari-smart-home",
+      storageBucket: "nari-smart-home.firebasestorage.app",
+      messagingSenderId: "285100807860",
+      appId: "1:285100807860:web:31a5c284f9c457111c29e1"
+    };
+
+    let currentUser = null;
+    let db = null;
+    let auth = null;
+
+    try {
+      firebase.initializeApp(firebaseConfig);
+      auth = firebase.auth();
+      db = firebase.firestore();
+    } catch (err) {
+      console.warn("Firebase initialization error:", err);
+    }
+
     let devices = JSON.parse(localStorage.getItem("nari_devices") || "[]");
     let openDrawerIndex = null;
     let audioCtx = null;
@@ -200,7 +249,79 @@
     let isTrainingClap = false;
     let clapTrainingBuffer = [];
 
-    // --- EXPIRATION CHECK: SECURE 10-MINUTE EPHEMERAL PAIRING ---
+    // --- AUTHENTICATION & CLOUD SYNC SYSTEM ---
+    if (auth) {
+      auth.onAuthStateChanged(async (user) => {
+        currentUser = user;
+        const authContainer = document.getElementById("authContainer");
+        const syncStatus = document.getElementById("syncStatus");
+
+        if (user) {
+          authContainer.innerHTML = `
+            <button class="btn-auth" onclick="handleSignOut()" title="Click to Logout">
+              <img class="user-avatar" src="${user.photoURL || 'https://via.placeholder.com/24'}" alt="user">
+              <span>${user.displayName ? user.displayName.split(' ')[0] : 'User'}</span>
+            </button>
+          `;
+          syncStatus.innerHTML = `<i class="fa-solid fa-cloud"></i> Synced with Google Account: <b>${user.email}</b>`;
+          await loadDevicesFromCloud();
+        } else {
+          authContainer.innerHTML = `
+            <button class="btn-auth" onclick="handleGoogleSignIn()">
+              <i class="fa-brands fa-google"></i> Login
+            </button>
+          `;
+          syncStatus.innerText = "Storage: Local (Sign in with Google to sync across phones)";
+        }
+        render();
+      });
+    }
+
+    async function handleGoogleSignIn() {
+      if (!auth) return alert("Firebase is initializing. Please try again.");
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        await auth.signInWithPopup(provider);
+      } catch (err) {
+        alert("Google Login Error: " + err.message);
+      }
+    }
+
+    async function handleSignOut() {
+      if (confirm("Sign out of your Google account?")) {
+        await auth.signOut();
+        render();
+      }
+    }
+
+    async function loadDevicesFromCloud() {
+      if (!currentUser || !db) return;
+      try {
+        const docRef = db.collection("users").doc(currentUser.uid);
+        const doc = await docRef.get();
+        if (doc.exists && doc.data().devices) {
+          devices = doc.data().devices;
+          localStorage.setItem("nari_devices", JSON.stringify(devices));
+        } else if (devices.length > 0) {
+          saveState();
+        }
+      } catch (err) {
+        console.error("Cloud retrieval failed:", err);
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem("nari_devices", JSON.stringify(devices));
+      if (currentUser && db) {
+        db.collection("users").doc(currentUser.uid).set({
+          email: currentUser.email,
+          updatedAt: Date.now(),
+          devices: devices
+        }).catch(err => console.error("Cloud save failed:", err));
+      }
+    }
+
+    // --- 10-MINUTE EXPIRING LINK CHECK ---
     function checkUrlPairing() {
       const params = new URLSearchParams(window.location.search);
       const addName = params.get('add');
@@ -209,15 +330,12 @@
 
       if (addName && addIp) {
         const now = Date.now();
-
-        // 1. Enforce 10-minute expiry validation
         if (!expiresAt || isNaN(expiresAt) || now > expiresAt) {
-          alert("⚠️ Pairing Failed: This invitation link has expired for security.\n\nLinks are valid for 10 minutes only. Please generate a fresh share link from the main device.");
+          alert("⚠️ Pairing link expired (10-minute security limit). Ask for a fresh link.");
           window.history.replaceState({}, document.title, window.location.pathname);
           return;
         }
 
-        // 2. Add device if not already present
         const exists = devices.some(d => d.ip === addIp);
         if (!exists) {
           devices.push({
@@ -231,42 +349,31 @@
             clapCadence: "single"
           });
           saveState();
-          alert(`✓ Verified & Added!\n"${decodeURIComponent(addName)}" is now linked to your phone.`);
-        } else {
-          alert(`"${decodeURIComponent(addName)}" is already configured on this phone.`);
+          alert(`✓ Added "${decodeURIComponent(addName)}"!`);
         }
-
-        // 3. Immediately sanitize the browser URL bar so it cannot be forwarded
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
 
-    // --- SHARE WITH 10-MINUTE EXPIRING TIMESTAMP ---
     function shareDevice(index) {
       const dev = devices[index];
       const base = window.location.origin + window.location.pathname;
-
-      // Generates an epoch timestamp valid for 10 minutes from this moment
       const expiryTimestamp = Date.now() + (10 * 60 * 1000);
       const shareUrl = `${base}?add=${encodeURIComponent(dev.name)}&ip=${encodeURIComponent(dev.ip)}&exp=${expiryTimestamp}`;
 
       if (navigator.share) {
         navigator.share({
           title: `NARI Switch: ${dev.name}`,
-          text: `Tap this temporary link to pair "${dev.name}" to your phone (Valid for 10 minutes on home Wi-Fi):`,
+          text: `Add "${dev.name}" to your dashboard (Valid for 10 minutes on home Wi-Fi):`,
           url: shareUrl
         }).catch(() => {});
       } else {
         navigator.clipboard.writeText(shareUrl).then(() => {
-          alert(`⏱️ Secure Link Copied!\n\nThis pairing link is valid for 10 minutes only. Send it to your family member while they are connected to home Wi-Fi.`);
+          alert(`⏱️ 10-Minute Share Link Copied! Send it to your family on home Wi-Fi.`);
         }).catch(() => {
           prompt("Copy this 10-minute pairing link:", shareUrl);
         });
       }
-    }
-
-    function saveState() {
-      localStorage.setItem("nari_devices", JSON.stringify(devices));
     }
 
     function toggleDrawer(index) {
@@ -299,7 +406,7 @@
       list.innerHTML = "";
 
       if (devices.length === 0) {
-        list.innerHTML = `<div style="text-align:center; padding:50px; color:var(--text-muted);"><p>No switches added.<br>Tap <b>+</b> at the top right to pair one.</p></div>`;
+        list.innerHTML = `<div style="text-align:center; padding:50px; color:var(--text-muted);"><p>No switches found.<br>Tap <b>+</b> to pair one or log in to sync saved devices.</p></div>`;
         return;
       }
 
@@ -334,7 +441,7 @@
               <button class="btn-toggle ${dev.state ? 'btn-on' : 'btn-off'}" id="btn-toggle-${index}" onclick="event.stopPropagation(); toggleDevice(${index});">
                 ${dev.state ? 'ON' : 'OFF'}
               </button>
-              <button class="btn-share" onclick="event.stopPropagation(); shareDevice(${index});" title="Share with family (10-min valid link)">
+              <button class="btn-share" onclick="event.stopPropagation(); shareDevice(${index});" title="Share with family (10-min link)">
                 <i class="fa-solid fa-share-nodes"></i>
               </button>
               <button class="btn-del" onclick="event.stopPropagation(); deleteDevice(${index});">✕</button>
@@ -360,11 +467,11 @@
             <div class="custom-voice-box" id="voice-box-${index}" style="display: ${currentMode === 'voice-custom' ? 'flex' : 'none'};" onclick="event.stopPropagation();">
               <div class="voice-input-row">
                 <label><i class="fa-solid fa-power-off" style="color:var(--success);"></i> Voice Command to Turn ON:</label>
-                <input type="text" id="voice-on-${index}" class="custom-voice-input" value="${voiceOn}" placeholder="e.g. fan on, activate, start, sesame" oninput="updateVoiceCommand(${index}, 'on', this.value)">
+                <input type="text" id="voice-on-${index}" class="custom-voice-input" value="${voiceOn}" placeholder="e.g. fan on, activate, start" oninput="updateVoiceCommand(${index}, 'on', this.value)">
               </div>
               <div class="voice-input-row">
                 <label><i class="fa-solid fa-power-off" style="color:var(--danger);"></i> Voice Command to Turn OFF:</label>
-                <input type="text" id="voice-off-${index}" class="custom-voice-input" value="${voiceOff}" placeholder="e.g. fan off, stop, sleep, close" oninput="updateVoiceCommand(${index}, 'off', this.value)">
+                <input type="text" id="voice-off-${index}" class="custom-voice-input" value="${voiceOff}" placeholder="e.g. fan off, stop, sleep" oninput="updateVoiceCommand(${index}, 'off', this.value)">
               </div>
             </div>
 
@@ -448,8 +555,7 @@
 
     function deleteDevice(index) {
       const dev = devices[index];
-      if (confirm(`Reset and erase Wi-Fi on ${dev.name}?`)) {
-        fetch(`http://${dev.ip}/resetwifi`, { mode: 'cors' }).catch(() => {});
+      if (confirm(`Remove switch ${dev.name}?`)) {
         devices.splice(index, 1);
         saveState();
         render();
@@ -520,7 +626,7 @@
       btn.classList.add("listening");
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Waiting for Clap 1 of 5...`;
       feedback.style.display = "flex";
-      feedback.innerHTML = `<span class="ai-badge" style="background:#f59e0b; color:white;">TRAINING</span> <span>Clap 1 now (see blue meter pulse)...</span>`;
+      feedback.innerHTML = `<span class="ai-badge" style="background:#f59e0b; color:white;">TRAINING</span> <span>Clap 1 now...</span>`;
 
       const timeData = new Uint8Array(analyser.fftSize);
       const freqData = new Uint8Array(analyser.frequencyBinCount);
@@ -533,7 +639,6 @@
         analyser.getByteFrequencyData(freqData);
 
         const fp = extractFingerprint(freqData, timeData);
-
         const visualPct = Math.min(100, Math.round((fp.peak / 45) * 100));
         if (meterBar) {
           meterBar.style.width = `${visualPct}%`;
@@ -855,7 +960,6 @@
       }
     }
 
-    // Run expiration check on load
     checkUrlPairing();
     render();
   </script>
