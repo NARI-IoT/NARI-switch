@@ -114,7 +114,6 @@
       overflow: hidden;
     }
 
-    /* Default overlay tint for contrast */
     .card::before {
       content: "";
       position: absolute;
@@ -128,7 +127,7 @@
 
     /* Idle Inactive State: brighten picture, hide text, frosted switch */
     .card.idle-fade::before {
-      background: rgba(8, 16, 12, 0.12); /* Image brightens */
+      background: rgba(8, 16, 12, 0.12);
     }
     .card.idle-fade .fading-label {
       opacity: 0;
@@ -145,7 +144,6 @@
       background: rgba(255, 255, 255, 0.85);
     }
 
-    /* Offline State */
     .card.device-offline {
       opacity: 0.42;
       filter: grayscale(0.85);
@@ -155,7 +153,6 @@
 
     .card-top { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
 
-    /* Lightbulb Icon */
     .icon-box { 
       width: 36px; 
       height: 36px; 
@@ -180,7 +177,6 @@
       position: relative;
     }
 
-    /* Modern Pill Slider Switch */
     .switch-wrap { position: relative; display: inline-block; width: 44px; height: 24px; }
     .switch-wrap input { opacity: 0; width: 0; height: 0; }
     .slider {
@@ -210,7 +206,6 @@
     .switch-wrap.verifying .slider { background-color: #f59e0b !important; animation: pulse 0.7s infinite alternate; }
     @keyframes pulse { from { opacity: 0.6; } to { opacity: 1.0; } }
 
-    /* Hidden Edit Button & Dropdown */
     .btn-edit-revealed {
       display: none;
       background: rgba(18, 36, 27, 0.95);
@@ -252,7 +247,6 @@
     .edit-menu-item:hover { background: rgba(52, 211, 153, 0.15); color: var(--accent); }
     .edit-menu-item.danger { color: #fca5a5; }
 
-    /* Mid Info */
     .card-info { margin-top: 4px; }
     .card-info h3 { font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .card-info p { font-size: 0.66rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px; }
@@ -261,7 +255,6 @@
     .status-online { background: var(--success); box-shadow: 0 0 6px var(--success); }
     .status-offline { background: var(--danger); }
 
-    /* Card Bottom Row: AI Modes Trigger & Live Wi-Fi Symbol */
     .card-bottom-bar {
       display: flex;
       justify-content: space-between;
@@ -278,7 +271,7 @@
     .modal-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 0.95rem; }
     .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.15rem; cursor: pointer; }
     
-    input[type=text], select { background: rgba(0,0,0,0.35); border: 1px solid var(--card-border); color: white; padding: 9px; border-radius: 8px; font-size: 0.82rem; outline: none; width: 100%; }
+    input[type=text], input[type=password], select { background: rgba(0,0,0,0.35); border: 1px solid var(--card-border); color: white; padding: 9px; border-radius: 8px; font-size: 0.82rem; outline: none; width: 100%; }
     .form-group { display: flex; flex-direction: column; gap: 4px; }
     .form-group label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
 
@@ -291,6 +284,20 @@
     .range-box { display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); }
     .range-box label { font-size: 0.72rem; color: var(--accent); display: flex; justify-content: space-between; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
+
+    /* Provision Progress Bar & Status */
+    .scan-status-box {
+      background: rgba(0,0,0,0.3);
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      text-align: center;
+    }
+    .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+    .progress-fill { width: 0%; height: 100%; background: var(--primary); transition: width 0.15s linear; }
   </style>
 </head>
 <body>
@@ -302,27 +309,54 @@
         <button class="btn-auth" onclick="handleGoogleSignIn()"><i class="fa-brands fa-google"></i> Login</button>
       </div>
       <button class="btn-circle-top btn-gear" onclick="openThemeModal()"><i class="fa-solid fa-gear"></i></button>
-      <button class="btn-circle-top" onclick="openModal()"><i class="fa-solid fa-plus"></i></button>
+      <button class="btn-circle-top" onclick="openProvisionModal()"><i class="fa-solid fa-plus"></i></button>
     </div>
   </header>
 
   <div class="sync-status" id="syncStatus">Storage: Local</div>
   <div class="container" id="deviceList"></div>
 
-  <!-- Add Device Modal -->
-  <div class="modal-overlay" id="pairModal">
+  <!-- Wi-Fi Provisioning & Auto Discovery Modal -->
+  <div class="modal-overlay" id="provisionModal">
     <div class="modal-box">
       <div class="modal-header">
-        <span>Add Smart Switch</span>
-        <button class="btn-close" onclick="closeModal()">✕</button>
+        <span>Pair Smart Switch</span>
+        <button class="btn-close" onclick="closeProvisionModal()">✕</button>
       </div>
-      <input type="text" id="devName" placeholder="Appliance Name (e.g. Bed Lamp)">
-      <input type="text" id="devIp" placeholder="ESP IP (e.g. 192.168.1.10)">
-      <button class="btn-primary" onclick="addDevice()">Pair Switch</button>
+      
+      <p style="font-size:0.75rem; color:var(--text-muted);">
+        Enter your home Wi-Fi credentials. Connect your phone/PC to <b>NARI-Switch-Setup</b> if the switch is unconfigured, or run auto-discovery directly on your home network.
+      </p>
+
+      <div class="form-group">
+        <label>Home Wi-Fi Name (SSID):</label>
+        <input type="text" id="homeSsid" placeholder="Your Router SSID">
+      </div>
+
+      <div class="form-group">
+        <label>Home Wi-Fi Password:</label>
+        <input type="password" id="homePass" placeholder="Enter Wi-Fi Password">
+      </div>
+
+      <div class="form-group">
+        <label>Router Subnet Base:</label>
+        <input type="text" id="subnetPrefix" value="192.168.1" placeholder="e.g. 192.168.1">
+      </div>
+
+      <button class="btn-primary" id="btnStartProvision" onclick="startProvisioningStep()">
+        <i class="fa-solid fa-satellite-dish"></i> Search & Provision Switch
+      </button>
+
+      <div class="scan-status-box" id="provisionStatusBox" style="display:none; margin-top:6px;">
+        <span id="provisionStatusText" style="font-size:0.74rem; font-weight:600; color:var(--accent);">Probing...</span>
+        <div class="progress-bar">
+          <div class="progress-fill" id="provisionProgress"></div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Bulb Icon Settings Modal (Rename, Power-On Boot State, Photo) -->
+  <!-- Bulb Icon Settings Modal -->
   <div class="modal-overlay" id="bulbSettingsModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -357,7 +391,7 @@
     </div>
   </div>
 
-  <!-- AI & Gesture Modes Modal (Opened without increasing card size) -->
+  <!-- AI & Gesture Modes Modal -->
   <div class="modal-overlay" id="aiModesModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -377,7 +411,6 @@
         </select>
       </div>
 
-      <!-- Auto Proximity Config -->
       <div class="range-box" id="proximityConfig" style="display:none;">
         <label>
           <span>Presence Distance Trigger</span>
@@ -385,7 +418,7 @@
         </label>
         <input type="range" id="proximitySlider" min="20" max="220" value="65" oninput="adjustProximityTrigger(this.value)">
         <p style="font-size:0.68rem; color:var(--text-muted); margin-top:4px;">
-          Slides the sensitivity trigger point. Turns ON when entering room range; turns OFF when you step outside.
+          Slides the sensitivity trigger point. Turns ON when entering room range; turns OFF when stepping outside.
         </p>
       </div>
 
@@ -429,8 +462,8 @@
     let devices = JSON.parse(localStorage.getItem("nari_devices") || "[]");
     let activeDeviceIndex = null;
     let idleTimer = null;
+    let isScanning = false;
 
-    // Theme initialization
     const savedTheme = localStorage.getItem("nari_theme") || "default";
     applyTheme(savedTheme, false);
 
@@ -442,21 +475,18 @@
     function openThemeModal() { document.getElementById("themeModal").style.display = "flex"; }
     function closeThemeModal() { document.getElementById("themeModal").style.display = "none"; }
 
-    // --- IDLE ACTIVITY DETECTOR (Brighten picture, hide text, frosted switch) ---
     function resetIdleTimer() {
-      // Restore all text labels immediately upon touch/mouse
       document.querySelectorAll('.card').forEach(c => c.classList.remove('idle-fade'));
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         document.querySelectorAll('.card').forEach(c => c.classList.add('idle-fade'));
-      }, 3500); // 3.5s of no interaction triggers idle fade
+      }, 3500);
     }
     window.onload = resetIdleTimer;
     document.onmousemove = resetIdleTimer;
     document.ontouchstart = resetIdleTimer;
     document.onclick = resetIdleTimer;
 
-    // Close menus on outside click
     document.addEventListener("click", () => {
       document.querySelectorAll('.edit-dropdown').forEach(el => el.classList.remove('show'));
       document.querySelectorAll('.btn-edit-revealed').forEach(el => el.style.display = 'none');
@@ -515,7 +545,6 @@
       }
     }
 
-    // --- HARDWARE HEALTH & WI-FI RSSI CHECK ---
     async function checkDeviceHealth(dev) {
       const controller = new AbortController();
       const startT = performance.now();
@@ -524,8 +553,7 @@
       try {
         const res = await fetch(`http://${dev.ip}/ping`, { method: 'GET', signal: controller.signal });
         clearTimeout(timeoutId);
-        const rtt = Math.round(performance.now() - startT);
-        dev.rtt = rtt;
+        dev.rtt = Math.round(performance.now() - startT);
 
         if (res.ok) {
           const txt = await res.text();
@@ -543,7 +571,7 @@
     }
 
     async function pollAllDevices() {
-      if (devices.length === 0) return;
+      if (devices.length === 0 || isScanning) return;
       let changed = false;
 
       for (let i = 0; i < devices.length; i++) {
@@ -554,7 +582,6 @@
           changed = true;
         }
 
-        // Auto Proximity Presence check
         if (devices[i].mode === 'auto-proximity' && online) {
           const threshold = devices[i].proximityThreshold || 65;
           const isNear = (devices[i].rtt || 999) <= threshold;
@@ -576,13 +603,144 @@
       return `<i class="fa-solid fa-wifi" style="color:#f59e0b;" title="Weak Wi-Fi (${rssi} dBm)"></i>`;
     }
 
-    // --- RENDER DASHBOARD ---
+    // --- PROVISIONING & SCAN DISCOVERY ---
+    function openProvisionModal() {
+      if (devices.length > 0 && devices[0].ip) {
+        const parts = devices[0].ip.split('.');
+        if (parts.length === 4) {
+          document.getElementById("subnetPrefix").value = `${parts[0]}.${parts[1]}.${parts[2]}`;
+        }
+      }
+      document.getElementById("provisionStatusBox").style.display = "none";
+      document.getElementById("btnStartProvision").disabled = false;
+      document.getElementById("btnStartProvision").innerHTML = `<i class="fa-solid fa-satellite-dish"></i> Search & Provision Switch`;
+      document.getElementById("provisionModal").style.display = "flex";
+    }
+
+    function closeProvisionModal() {
+      document.getElementById("provisionModal").style.display = "none";
+    }
+
+    async function probeIp(ip) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      try {
+        const res = await fetch(`http://${ip}/ping`, { method: 'GET', signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const txt = await res.text();
+          const rssiVal = parseInt(txt, 10);
+          return { found: true, ip: ip, rssi: isNaN(rssiVal) ? -55 : rssiVal };
+        }
+        return { found: false };
+      } catch (e) {
+        clearTimeout(timeoutId);
+        return { found: false };
+      }
+    }
+
+    async function runSubnetSweep(prefix) {
+      const statusText = document.getElementById("provisionStatusText");
+      const prog = document.getElementById("provisionProgress");
+      let newlyAdded = 0;
+      const totalHosts = 254;
+      const batchSize = 18;
+
+      for (let i = 1; i <= totalHosts; i += batchSize) {
+        const batch = [];
+        for (let j = i; j < i + batchSize && j <= totalHosts; j++) {
+          batch.push(`${prefix}.${j}`);
+        }
+
+        const pct = Math.round((i / totalHosts) * 100);
+        prog.style.width = `${pct}%`;
+        statusText.innerText = `Sweeping router ${prefix}.1 - ${prefix}.254 (${pct}%)...`;
+
+        const results = await Promise.all(batch.map(ip => probeIp(ip)));
+        results.forEach(res => {
+          if (res.found) {
+            const exists = devices.some(d => d.ip === res.ip);
+            if (!exists) {
+              devices.push({
+                name: `Switch ${devices.length + 1}`,
+                ip: res.ip,
+                state: false,
+                mode: "none",
+                bootState: "LAST",
+                bgPhoto: null,
+                proximityThreshold: 65,
+                wifiRssi: res.rssi,
+                isOnline: true
+              });
+              newlyAdded++;
+            }
+          }
+        });
+      }
+
+      prog.style.width = `100%`;
+      statusText.innerText = `Finished! Added ${newlyAdded} new switch(es).`;
+      saveState();
+      render();
+      setTimeout(closeProvisionModal, 1500);
+    }
+
+    async function startProvisioningStep() {
+      const ssid = document.getElementById("homeSsid").value.trim();
+      const pass = document.getElementById("homePass").value.trim();
+      const prefix = document.getElementById("subnetPrefix").value.trim() || "192.168.1";
+      const statusBox = document.getElementById("provisionStatusBox");
+      const statusText = document.getElementById("provisionStatusText");
+      const prog = document.getElementById("provisionProgress");
+      const btn = document.getElementById("btnStartProvision");
+
+      btn.disabled = true;
+      statusBox.style.display = "flex";
+      statusText.innerText = "Checking for unconfigured switch (192.168.4.1)...";
+      prog.style.width = "20%";
+
+      try {
+        const probeAP = await fetch("http://192.168.4.1/ping", { method: "GET" });
+        const respText = await probeAP.text();
+
+        if (respText.includes("SETUP_AP")) {
+          if (!ssid) {
+            alert("Found NARI-Switch-Setup. Please enter your home Wi-Fi SSID and Password.");
+            btn.disabled = false;
+            return;
+          }
+
+          statusText.innerText = "Sending Wi-Fi credentials to switch...";
+          prog.style.width = "50%";
+
+          const send = await fetch(`http://192.168.4.1/provision?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`);
+          if (send.ok) {
+            statusText.innerText = "Credentials accepted! Switch is joining router...";
+            prog.style.width = "75%";
+            await new Promise(r => setTimeout(r, 4000));
+            await runSubnetSweep(prefix);
+            return;
+          }
+        }
+      } catch (err) {
+        // Device not in AP mode or phone is already connected to home Wi-Fi
+      }
+
+      statusText.innerText = "Scanning local router network directly...";
+      await runSubnetSweep(prefix);
+      btn.disabled = false;
+    }
+
     function render() {
       const list = document.getElementById("deviceList");
       list.innerHTML = "";
 
       if (devices.length === 0) {
-        list.innerHTML = `<div style="grid-column: span 2; text-align:center; padding:35px 10px; color:var(--text-muted);"><p>No smart switches found.<br>Tap <b>+</b> to pair one.</p></div>`;
+        list.innerHTML = `
+          <div style="grid-column: span 2; text-align:center; padding:35px 10px; color:var(--text-muted);">
+            <p>No switches found.<br>Tap <b>+</b> to pair or auto-discover devices.</p>
+          </div>
+        `;
         return;
       }
 
@@ -596,7 +754,6 @@
         card.id = `card-${index}`;
         if (hasBg) card.style.backgroundImage = `url("${dev.bgPhoto}")`;
 
-        // Right-click / Long-press triggers Edit Menu
         card.oncontextmenu = (e) => triggerEditOption(index, e);
         let touchTimer = null;
         card.ontouchstart = (e) => { touchTimer = setTimeout(() => triggerEditOption(index, e), 500); };
@@ -604,24 +761,20 @@
 
         card.innerHTML = `
           <div class="card-top">
-            <!-- Bulb icon opens settings modal -->
             <div class="icon-box ${dev.state && isOnline ? 'active' : ''}" onclick="openBulbModal(${index}, event)" title="Appliance Settings">
               <i class="fa-solid ${!isOnline ? 'fa-plug-circle-xmark' : (dev.state ? 'fa-lightbulb' : 'fa-power-off')}"></i>
             </div>
 
             <div class="top-right-wrap">
-              <!-- Pill Switch on Top Right -->
               <label class="switch-wrap ${!isOnline ? 'disabled' : ''} ${isVerifying ? 'verifying' : ''}" onclick="event.stopPropagation();">
                 <input type="checkbox" id="toggle-input-${index}" ${dev.state ? 'checked' : ''} onchange="handleToggleClick(${index}, this)">
                 <span class="slider"></span>
               </label>
 
-              <!-- Hidden Edit Option -->
               <button class="btn-edit-revealed" id="btn-edit-${index}" onclick="toggleEditDropdown(${index}, event)">
                 Edit ▾
               </button>
 
-              <!-- Edit Dropdown (Share, Delete) -->
               <div class="edit-dropdown" id="edit-menu-${index}">
                 <button class="edit-menu-item" onclick="event.stopPropagation(); shareDevice(${index});">
                   <i class="fa-solid fa-share-nodes"></i> Share Link
@@ -655,11 +808,10 @@
       resetIdleTimer();
     }
 
-    // --- TOGGLE EXECUTION WITH STRICT ACKNOWLEDGMENT ---
     async function handleToggleClick(index, checkboxElem) {
       const dev = devices[index];
       const targetState = checkboxElem.checked;
-      checkboxElem.checked = dev.state; // lock slider until ACK
+      checkboxElem.checked = dev.state;
 
       if (dev.isOnline === false) {
         alert(`Cannot toggle: "${dev.name}" is powered down.`);
@@ -712,7 +864,6 @@
       if (!isVisible) menu.classList.add('show');
     }
 
-    // --- BULB MODAL: RENAME, BOOT STATE & PHOTO ---
     function openBulbModal(index, e) {
       e.stopPropagation();
       activeDeviceIndex = index;
@@ -736,7 +887,6 @@
       dev.bootState = newBoot;
       dev.bgPhoto = newPhoto || dev.bgPhoto;
 
-      // Send chosen boot relay state directly to ESP to save in EEPROM
       try {
         fetch(`http://${dev.ip}/setBootState?mode=${newBoot}`, { mode: 'cors' }).catch(() => {});
       } catch (e) {}
@@ -764,7 +914,6 @@
       render();
     }
 
-    // --- AI MODES MODAL ---
     function openAiModal(index, e) {
       e.stopPropagation();
       activeDeviceIndex = index;
@@ -790,23 +939,6 @@
       devices[activeDeviceIndex].proximityThreshold = parseInt(val, 10);
       document.getElementById("proximityLabel").innerText = `${val} ms`;
       saveState();
-    }
-
-    function openModal() { document.getElementById("pairModal").style.display = "flex"; }
-    function closeModal() { document.getElementById("pairModal").style.display = "none"; }
-
-    function addDevice() {
-      const name = document.getElementById("devName").value.trim();
-      const ip = document.getElementById("devIp").value.trim();
-      if (!name || !ip) return alert("Fill in both fields.");
-      devices.push({ 
-        name, ip, state: false, mode: "none", 
-        bootState: "LAST", bgPhoto: null, 
-        proximityThreshold: 65, isOnline: true 
-      });
-      saveState();
-      render();
-      closeModal();
     }
 
     function deleteDevice(index) {
