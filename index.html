@@ -27,7 +27,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px 16px 60px 16px; }
     
-    header { width: 100%; max-width: 440px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--card-border); }
+    header { width: 100%; max-width: 480px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--card-border); }
     .brand { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 700; color: var(--accent); }
     .header-actions { display: flex; align-items: center; gap: 10px; }
     
@@ -47,95 +47,125 @@
     .user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
     .btn-add-top { background: var(--primary); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; cursor: pointer; }
 
-    .sync-status { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 12px; text-align: right; width: 100%; max-width: 440px; }
+    .sync-status { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 14px; text-align: right; width: 100%; max-width: 480px; }
 
-    .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 18px; }
-    
-    /* Device Card Base */
+    /* Dashboard Grid of Square Cards */
+    .container { 
+      width: 100%; 
+      max-width: 480px; 
+      display: grid; 
+      grid-template-columns: repeat(2, 1fr); 
+      gap: 14px; 
+    }
+
+    /* Square Card Style */
     .card { 
       background: var(--card-bg); 
       border: 1px solid var(--card-border); 
-      border-radius: 24px; 
-      padding: 20px; 
+      border-radius: 22px; 
+      padding: 16px; 
       display: flex; 
       flex-direction: column; 
       justify-content: space-between; 
+      aspect-ratio: 1 / 1; 
       box-shadow: 0 10px 25px -5px rgba(0,0,0,0.45); 
       cursor: pointer; 
-      transition: all 0.3s ease; 
+      transition: all 0.25s ease; 
       user-select: none;
       position: relative;
+      overflow: hidden;
+    }
+
+    /* When sensor drawer is expanded, let card expand dynamically */
+    .card.drawer-active {
+      aspect-ratio: auto;
+      grid-column: span 2;
     }
 
     /* Dimmed Offline State */
     .card.device-offline {
-      opacity: 0.42;
-      filter: grayscale(0.85);
-      border-color: rgba(239, 68, 68, 0.25);
+      opacity: 0.38;
+      filter: grayscale(0.9);
+      border-color: rgba(239, 68, 68, 0.2);
     }
-    .card.device-offline:hover {
-      cursor: not-allowed;
-    }
-    
-    .card-main { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-    .dev-left { display: flex; align-items: center; gap: 14px; }
-    .icon-box { width: 48px; height: 48px; border-radius: 14px; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: var(--text-muted); transition: 0.3s; }
+    .card.device-offline:hover { cursor: not-allowed; }
+
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
+    .icon-box { width: 44px; height: 44px; border-radius: 12px; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--text-muted); transition: 0.3s; }
     .icon-box.active { background: rgba(16, 185, 129, 0.18); color: var(--success); }
-    .dev-info h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 2px; }
-    .dev-info p { font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
-    
-    /* Status indicators */
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .status-online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+    .card-actions-mini { display: flex; align-items: center; gap: 4px; }
+    .btn-icon-mini { background: transparent; border: none; color: var(--text-muted); font-size: 0.82rem; cursor: pointer; padding: 4px; border-radius: 6px; }
+    .btn-icon-mini:hover { color: var(--accent); }
+    .btn-icon-mini.del:hover { color: var(--danger); }
+
+    .card-mid { margin-top: 10px; }
+    .card-mid h3 { font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-mid p { font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .status-online { background: var(--success); box-shadow: 0 0 6px var(--success); }
     .status-offline { background: var(--danger); }
-    
-    .dev-actions { display: flex; align-items: center; gap: 8px; }
-    .btn-toggle { min-width: 74px; padding: 10px 14px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 0.82rem; }
-    .btn-off { background: #334155; color: #94a3b8; }
-    .btn-on { background: var(--success); color: white; }
-    
-    /* Hardware Pending / Busy State */
-    .btn-toggle.btn-busy {
-      background: #1e293b;
-      color: #38bdf8;
-      cursor: wait;
-      pointer-events: none;
+
+    .card-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+    .state-label { font-size: 0.76rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+    .state-label.active { color: var(--success); }
+
+    /* Modern Pill Slider Switch */
+    .switch-wrap { position: relative; display: inline-block; width: 48px; height: 26px; }
+    .switch-wrap input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: 0.25s;
+      border-radius: 30px;
     }
-
-    /* Disabled Offline Button */
-    .btn-toggle.btn-disabled {
-      background: #1e293b;
-      color: #64748b;
-      cursor: not-allowed;
-      pointer-events: none;
-      box-shadow: none;
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: 0.25s;
+      border-radius: 50%;
     }
+    input:checked + .slider { background-color: var(--success); }
+    input:checked + .slider:before { transform: translateX(22px); }
+    
+    /* Disabled Slider (Offline or Verifying) */
+    .switch-wrap.disabled { pointer-events: none; opacity: 0.45; }
+    .switch-wrap.verifying .slider { background-color: #f59e0b !important; animation: pulse 0.7s infinite alternate; }
+    @keyframes pulse { from { opacity: 0.6; } to { opacity: 1.0; } }
 
-    .btn-share { background: #1e293b; border: 1px solid var(--card-border); color: var(--accent); width: 34px; height: 34px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
-    .btn-del { background: transparent; border: none; color: var(--danger); font-size: 1.2rem; cursor: pointer; padding: 6px; }
+    .drawer-trigger { font-size: 0.68rem; color: #64748b; margin-top: 6px; text-align: center; width: 100%; cursor: pointer; }
 
+    /* Drawer Styles */
     .sensor-drawer { 
       margin-top: 14px; 
-      padding-top: 14px; 
+      padding-top: 12px; 
       border-top: 1px dashed var(--card-border); 
       display: none; 
       flex-direction: column; 
       gap: 12px; 
+      width: 100%;
     }
     .sensor-drawer.open { display: flex; }
-    .drawer-title { font-size: 0.78rem; color: var(--accent); font-weight: 600; }
+    .drawer-title { font-size: 0.76rem; color: var(--accent); font-weight: 600; }
     select { 
       background: #090d16; 
       border: 1px solid var(--card-border); 
       color: #38bdf8; 
-      padding: 10px 12px; 
-      border-radius: 10px; 
-      font-size: 0.85rem; 
+      padding: 8px 10px; 
+      border-radius: 8px; 
+      font-size: 0.82rem; 
       outline: none; 
       width: 100%; 
       cursor: pointer; 
     }
-    .hint-label { font-size: 0.72rem; color: #64748b; margin-top: 4px; text-align: right; }
 
     .custom-voice-box {
       display: none;
@@ -143,42 +173,40 @@
       gap: 8px;
       background: #090d16;
       border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 12px;
+      border-radius: 12px;
+      padding: 10px;
     }
     .voice-input-row { display: flex; flex-direction: column; gap: 4px; }
-    .voice-input-row label { font-size: 0.74rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
-    .custom-voice-input { background: #141b2d; border: 1px solid var(--card-border); color: var(--accent); padding: 8px 10px; border-radius: 8px; font-size: 0.84rem; outline: none; width: 100%; }
+    .voice-input-row label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); }
+    .custom-voice-input { background: #141b2d; border: 1px solid var(--card-border); color: var(--accent); padding: 7px 10px; border-radius: 6px; font-size: 0.82rem; outline: none; width: 100%; }
 
     .clap-trainer-box {
       display: none;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       background: #090d16;
       border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 12px;
+      border-radius: 12px;
+      padding: 10px;
     }
-    .trainer-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; font-weight: 600; color: var(--accent); }
-    .trainer-actions { display: flex; gap: 8px; }
+    .trainer-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; font-weight: 600; color: var(--accent); }
+    .trainer-actions { display: flex; gap: 6px; }
     .btn-train-clap {
       flex: 1;
-      padding: 9px;
+      padding: 8px;
       background: #1e293b;
       border: 1px solid var(--card-border);
-      border-radius: 10px;
+      border-radius: 8px;
       color: white;
-      font-size: 0.76rem;
+      font-size: 0.72rem;
       font-weight: 700;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      transition: 0.2s;
     }
     .btn-train-clap.listening { background: #dc2626; animation: pulse 1s infinite alternate; }
-    @keyframes pulse { from { opacity: 0.8; } to { opacity: 1.0; } }
 
     .clap-cadence-row {
       display: flex;
@@ -186,35 +214,25 @@
       justify-content: space-between;
       gap: 8px;
       margin-top: 4px;
-      padding-top: 8px;
+      padding-top: 6px;
       border-top: 1px dashed var(--card-border);
     }
-    .clap-cadence-row label { font-size: 0.74rem; color: var(--text-muted); font-weight: 600; }
-    .select-cadence {
-      background: #141b2d;
-      border: 1px solid var(--card-border);
-      color: #38bdf8;
-      padding: 6px 8px;
-      border-radius: 8px;
-      font-size: 0.78rem;
-      outline: none;
-      cursor: pointer;
-      width: auto;
-    }
+    .clap-cadence-row label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+    .select-cadence { background: #141b2d; border: 1px solid var(--card-border); color: #38bdf8; padding: 5px 8px; border-radius: 6px; font-size: 0.76rem; width: auto; }
 
-    .meter-container { width: 100%; height: 8px; background: #090d16; border-radius: 4px; overflow: hidden; position: relative; display: none; border: 1px solid var(--card-border); }
+    .meter-container { width: 100%; height: 6px; background: #090d16; border-radius: 3px; overflow: hidden; position: relative; display: none; border: 1px solid var(--card-border); }
     .meter-bar { width: 0%; height: 100%; background: #38bdf8; transition: width 0.04s ease-out; }
     .meter-threshold-line { position: absolute; top: 0; bottom: 0; left: 65%; width: 2px; background: #ef4444; }
     
-    .sensor-feedback { font-size: 0.78rem; color: #fbbf24; display: none; align-items: center; gap: 8px; font-weight: 500; }
-    .ai-badge { display: inline-block; padding: 2px 7px; border-radius: 6px; background: rgba(56, 189, 248, 0.15); color: var(--accent); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; }
+    .sensor-feedback { font-size: 0.75rem; color: #fbbf24; display: none; align-items: center; gap: 6px; font-weight: 500; }
+    .ai-badge { display: inline-block; padding: 2px 6px; border-radius: 5px; background: rgba(56, 189, 248, 0.15); color: var(--accent); font-size: 0.68rem; font-weight: 700; }
 
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; justify-content: center; align-items: center; padding: 20px; z-index: 100; }
-    .modal-box { background: #141b2d; border: 1px solid var(--card-border); border-radius: 22px; width: 100%; max-width: 380px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+    .modal-box { background: #141b2d; border: 1px solid var(--card-border); border-radius: 20px; width: 100%; max-width: 360px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
     .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; }
-    input[type=text] { background: #090d16; border: 1px solid var(--card-border); color: white; padding: 12px; border-radius: 10px; font-size: 0.9rem; outline: none; }
-    .btn-primary { background: linear-gradient(135deg, #0284c7, #0369a1); color: white; border: none; padding: 13px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+    input[type=text] { background: #090d16; border: 1px solid var(--card-border); color: white; padding: 10px; border-radius: 8px; font-size: 0.88rem; outline: none; }
+    .btn-primary { background: linear-gradient(135deg, #0284c7, #0369a1); color: white; border: none; padding: 11px; border-radius: 8px; font-weight: bold; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -231,7 +249,7 @@
     </div>
   </header>
 
-  <div class="sync-status" id="syncStatus">Storage: Local (Sign in with Google to sync across devices)</div>
+  <div class="sync-status" id="syncStatus">Storage: Local</div>
   <div class="container" id="deviceList"></div>
 
   <div class="modal-overlay" id="pairModal">
@@ -240,8 +258,8 @@
         <span>Add Smart Switch</span>
         <button class="btn-close" onclick="closeModal()">✕</button>
       </div>
-      <input type="text" id="devName" placeholder="Appliance Name (e.g. Bed Lamp)">
-      <input type="text" id="devIp" placeholder="ESP Local IP (e.g. 192.168.1.10)">
+      <input type="text" id="devName" placeholder="Device Name (e.g. Bed Lamp)">
+      <input type="text" id="devIp" placeholder="ESP IP (e.g. 192.168.1.10)">
       <button class="btn-primary" onclick="addDevice()">Pair Device</button>
     </div>
   </div>
@@ -261,13 +279,11 @@
     let auth = null;
 
     try {
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
+      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       auth = firebase.auth();
       db = firebase.firestore();
     } catch (err) {
-      console.error("Firebase initialization failed:", err);
+      console.error("Firebase init err:", err);
     }
 
     let devices = JSON.parse(localStorage.getItem("nari_devices") || "[]");
@@ -281,7 +297,6 @@
     let isTrainingClap = false;
     let clapTrainingBuffer = [];
 
-    // --- AUTHENTICATION & CLOUD SYNC ---
     if (auth) {
       auth.onAuthStateChanged(async (user) => {
         currentUser = user;
@@ -295,7 +310,7 @@
               <span>${user.displayName ? user.displayName.split(' ')[0] : 'User'}</span>
             </button>
           `;
-          syncStatus.innerHTML = `<i class="fa-solid fa-cloud"></i> Synced with Google Account: <b>${user.email}</b>`;
+          syncStatus.innerHTML = `<i class="fa-solid fa-cloud"></i> Synced: <b>${user.email}</b>`;
           await loadDevicesFromCloud();
         } else {
           authContainer.innerHTML = `
@@ -303,24 +318,23 @@
               <i class="fa-brands fa-google"></i> Login
             </button>
           `;
-          syncStatus.innerText = "Storage: Local (Sign in with Google to sync across devices)";
+          syncStatus.innerText = "Storage: Local (Login to sync)";
         }
         render();
       });
     }
 
     async function handleGoogleSignIn() {
-      if (!auth) return alert("Authentication service is not initialized.");
-      const provider = new firebase.auth.GoogleAuthProvider();
+      if (!auth) return alert("Auth service not ready.");
       try {
-        await auth.signInWithPopup(provider);
+        await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
       } catch (err) {
-        alert("Google Login Error: " + err.message);
+        alert("Login Error: " + err.message);
       }
     }
 
     async function handleSignOut() {
-      if (confirm("Sign out of your Google account?")) {
+      if (confirm("Sign out of Google?")) {
         await auth.signOut();
         render();
       }
@@ -329,8 +343,7 @@
     async function loadDevicesFromCloud() {
       if (!currentUser || !db) return;
       try {
-        const docRef = db.collection("users").doc(currentUser.uid);
-        const doc = await docRef.get();
+        const doc = await db.collection("users").doc(currentUser.uid).get();
         if (doc.exists && doc.data().devices) {
           devices = doc.data().devices;
           localStorage.setItem("nari_devices", JSON.stringify(devices));
@@ -338,7 +351,7 @@
           saveState();
         }
       } catch (err) {
-        console.error("Cloud retrieval failed:", err);
+        console.error("Cloud fetch err:", err);
       }
     }
 
@@ -349,14 +362,14 @@
           email: currentUser.email,
           updatedAt: Date.now(),
           devices: devices
-        }).catch(err => console.error("Cloud save failed:", err));
+        }).catch(err => console.error("Cloud save err:", err));
       }
     }
 
-    // --- HARDWARE POWER / REACHABILITY CHECKER ---
-    async function checkDeviceHealth(dev) {
+    // --- PING HEALTH CHECK (Lightweight ping) ---
+    async function checkDeviceOnline(dev) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1800);
+      const timeoutId = setTimeout(() => controller.abort(), 1600); // 1.6s timeout
 
       try {
         await fetch(`http://${dev.ip}/ping`, { 
@@ -377,17 +390,15 @@
       let stateChanged = false;
 
       for (let i = 0; i < devices.length; i++) {
-        if (devices[i]._isBusy) continue; // Don't interrupt while toggle in-flight
-        const isOnline = await checkDeviceHealth(devices[i]);
-        if (devices[i].isOnline !== isOnline) {
-          devices[i].isOnline = isOnline;
+        if (devices[i]._isVerifying) continue;
+        const online = await checkDeviceOnline(devices[i]);
+        if (devices[i].isOnline !== online) {
+          devices[i].isOnline = online;
           stateChanged = true;
         }
       }
 
-      if (stateChanged) {
-        render();
-      }
+      if (stateChanged) render();
     }
 
     setInterval(pollAllDevicesHealth, 5000);
@@ -401,13 +412,12 @@
       if (addName && addIp) {
         const now = Date.now();
         if (!expiresAt || isNaN(expiresAt) || now > expiresAt) {
-          alert("Pairing link expired (10-minute security limit). Ask for a fresh link.");
+          alert("Pairing link expired (10-minute security limit).");
           window.history.replaceState({}, document.title, window.location.pathname);
           return;
         }
 
-        const exists = devices.some(d => d.ip === addIp);
-        if (!exists) {
+        if (!devices.some(d => d.ip === addIp)) {
           devices.push({
             name: decodeURIComponent(addName),
             ip: decodeURIComponent(addIp),
@@ -428,21 +438,14 @@
 
     function shareDevice(index) {
       const dev = devices[index];
-      const base = window.location.origin + window.location.pathname;
-      const expiryTimestamp = Date.now() + (10 * 60 * 1000);
-      const shareUrl = `${base}?add=${encodeURIComponent(dev.name)}&ip=${encodeURIComponent(dev.ip)}&exp=${expiryTimestamp}`;
+      const expiry = Date.now() + (10 * 60 * 1000);
+      const shareUrl = `${window.location.origin}${window.location.pathname}?add=${encodeURIComponent(dev.name)}&ip=${encodeURIComponent(dev.ip)}&exp=${expiry}`;
 
       if (navigator.share) {
-        navigator.share({
-          title: `NARI Switch: ${dev.name}`,
-          text: `Add "${dev.name}" to your dashboard (Valid for 10 minutes on home Wi-Fi):`,
-          url: shareUrl
-        }).catch(() => {});
+        navigator.share({ title: `NARI Switch: ${dev.name}`, url: shareUrl }).catch(() => {});
       } else {
         navigator.clipboard.writeText(shareUrl).then(() => {
-          alert("10-Minute Share Link Copied! Send it to your family on home Wi-Fi.");
-        }).catch(() => {
-          prompt("Copy this 10-minute pairing link:", shareUrl);
+          alert("10-Minute Share Link Copied!");
         });
       }
     }
@@ -453,151 +456,107 @@
       render();
     }
 
-    function updateVoiceCommand(index, type, text) {
-      const val = text.trim().toLowerCase();
-      if (type === 'on') devices[index].voiceOn = val;
-      if (type === 'off') devices[index].voiceOff = val;
-      saveState();
-
-      const feedback = document.getElementById(`feedback-${index}`);
-      if (feedback && devices[index].mode === "voice-custom") {
-        const onWord = devices[index].voiceOn || "on";
-        const offWord = devices[index].voiceOff || "off";
-        feedback.innerHTML = `<span class="ai-badge">Voice Active (en-IN)</span> <span>Say "<b>${onWord}</b>" or "<b>${offWord}</b>"</span>`;
-      }
-    }
-
-    function updateClapCadence(index, cadence) {
-      devices[index].clapCadence = cadence;
-      saveState();
-      handleModeChange(index, "trained-clap");
-    }
-
     function render() {
       const list = document.getElementById("deviceList");
       list.innerHTML = "";
 
       if (devices.length === 0) {
-        list.innerHTML = `<div style="text-align:center; padding:50px; color:var(--text-muted);"><p>No switches found.<br>Tap <b>+</b> to pair one or log in to sync saved devices.</p></div>`;
+        list.innerHTML = `<div style="grid-column: span 2; text-align:center; padding:40px 10px; color:var(--text-muted);"><p>No smart switches found.<br>Tap <b>+</b> to pair one.</p></div>`;
         return;
       }
 
       devices.forEach((dev, index) => {
         const isOnline = dev.isOnline !== false;
-        const isBusy = !!dev._isBusy;
+        const isVerifying = !!dev._isVerifying;
         const isOpen = openDrawerIndex === index && isOnline;
         const currentMode = dev.mode || "none";
-        const voiceOn = dev.voiceOn !== undefined ? dev.voiceOn : "light on";
-        const voiceOff = dev.voiceOff !== undefined ? dev.voiceOff : "light off";
-        const clapCadence = dev.clapCadence || "single";
         const hasTrainedClap = dev.clapProfile && dev.clapProfile.length > 0;
-        
+
         const card = document.createElement("div");
-        card.className = `card ${isOnline ? '' : 'device-offline'}`;
+        card.className = `card ${isOnline ? '' : 'device-offline'} ${isOpen ? 'drawer-active' : ''}`;
         card.id = `card-${index}`;
-        
-        card.onclick = (e) => {
-          if (!isOnline || isBusy) return;
-          if (e.target.closest('.dev-actions') || e.target.closest('.sensor-drawer')) return;
-          toggleDrawer(index);
-        };
-
-        // Determine toggle button visual state
-        let toggleClass = dev.state ? 'btn-on' : 'btn-off';
-        let toggleText = dev.state ? 'ON' : 'OFF';
-
-        if (!isOnline) {
-          toggleClass = 'btn-disabled';
-          toggleText = 'OFFLINE';
-        } else if (isBusy) {
-          toggleClass = 'btn-busy';
-          toggleText = '<i class="fa-solid fa-spinner fa-spin"></i>';
-        }
 
         card.innerHTML = `
-          <div class="card-main">
-            <div class="dev-left">
-              <div class="icon-box ${dev.state && isOnline ? 'active' : ''}" id="icon-${index}">
-                <i class="fa-solid ${!isOnline ? 'fa-plug-circle-xmark' : (dev.state ? 'fa-lightbulb' : 'fa-power-off')}"></i>
-              </div>
-              <div class="dev-info">
-                <h3>${dev.name}</h3>
-                <p>
-                  <span class="status-dot ${isOnline ? 'status-online' : 'status-offline'}"></span>
-                  ${isOnline ? `${dev.ip}` : `Powered Off (${dev.ip})`}
-                </p>
-              </div>
+          <div class="card-top">
+            <div class="icon-box ${dev.state && isOnline ? 'active' : ''}">
+              <i class="fa-solid ${!isOnline ? 'fa-plug-circle-xmark' : (dev.state ? 'fa-lightbulb' : 'fa-power-off')}"></i>
             </div>
-            <div class="dev-actions">
-              <button 
-                class="btn-toggle ${toggleClass}" 
-                id="btn-toggle-${index}" 
-                onclick="event.stopPropagation(); ${isOnline && !isBusy ? `toggleDevice(${index});` : ''}"
-                ${!isOnline || isBusy ? 'disabled' : ''}
-                title="${isOnline ? 'Toggle Switch' : 'Device is offline / unpowered'}">
-                ${toggleText}
-              </button>
-              <button class="btn-share" onclick="event.stopPropagation(); shareDevice(${index});" title="Share with family (10-min link)">
-                <i class="fa-solid fa-share-nodes"></i>
-              </button>
-              <button class="btn-del" onclick="event.stopPropagation(); deleteDevice(${index});">✕</button>
+            <div class="card-actions-mini">
+              <button class="btn-icon-mini" onclick="event.stopPropagation(); shareDevice(${index});" title="Share (10m)"><i class="fa-solid fa-share-nodes"></i></button>
+              <button class="btn-icon-mini del" onclick="event.stopPropagation(); deleteDevice(${index});" title="Delete">✕</button>
             </div>
           </div>
 
-          <div class="hint-label">${!isOnline ? '✕ Hardware unpowered (No toggle allowed)' : (isOpen ? '▲ Collapse options' : '▼ Tap card to open AI & sensor modes')}</div>
-          
+          <div class="card-mid">
+            <h3>${dev.name}</h3>
+            <p>
+              <span class="status-dot ${isOnline ? 'status-online' : 'status-offline'}"></span>
+              ${isOnline ? dev.ip : 'Powered Off'}
+            </p>
+          </div>
+
+          <div class="card-bottom">
+            <span class="state-label ${dev.state && isOnline ? 'active' : ''}">
+              ${!isOnline ? 'OFFLINE' : (isVerifying ? 'SYNCING...' : (dev.state ? 'ON' : 'OFF'))}
+            </span>
+
+            <!-- Modern Pill Toggle Switch -->
+            <label class="switch-wrap ${!isOnline ? 'disabled' : ''} ${isVerifying ? 'verifying' : ''}" onclick="event.stopPropagation();">
+              <input type="checkbox" id="toggle-input-${index}" ${dev.state ? 'checked' : ''} onchange="handleToggleClick(${index}, this)">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="drawer-trigger" onclick="toggleDrawer(${index})">
+            ${!isOnline ? '✕ Hardware Offline' : (isOpen ? '▲ Hide Modes' : '▼ AI & Sensor Modes')}
+          </div>
+
+          <!-- Collapsible Drawer -->
           <div class="sensor-drawer ${isOpen ? 'open' : ''}">
-            <div class="drawer-title">
-              <i class="fa-solid fa-brain"></i> Acoustic & Gesture Modes
-            </div>
-            <select onclick="event.stopPropagation();" onchange="handleModeChange(${index}, this.value)">
+            <div class="drawer-title"><i class="fa-solid fa-brain"></i> Acoustic & Gesture Modes</div>
+            <select onchange="handleModeChange(${index}, this.value)">
               <option value="none" ${currentMode === 'none' ? 'selected' : ''}>Standard Manual Mode</option>
-              <option value="voice-custom" ${currentMode === 'voice-custom' ? 'selected' : ''}>Custom Voice Commands (Any Word ON & OFF)</option>
-              <option value="trained-clap" ${currentMode === 'trained-clap' ? 'selected' : ''}>Personalized Fingerprint Clap (Your Hands Only)</option>
-              <option value="shake" ${currentMode === 'shake' ? 'selected' : ''}>Gesture: Shake Phone (Acc > 11g)</option>
-              <option value="wrist" ${currentMode === 'wrist' ? 'selected' : ''}>Gesture: Wrist Flick (Gyro/Tilt)</option>
-              <option value="flicker" ${currentMode === 'flicker' ? 'selected' : ''}>DIY: Auto-Strobe Cycle (500ms)</option>
+              <option value="voice-custom" ${currentMode === 'voice-custom' ? 'selected' : ''}>Voice Commands</option>
+              <option value="trained-clap" ${currentMode === 'trained-clap' ? 'selected' : ''}>Fingerprint Clap</option>
+              <option value="shake" ${currentMode === 'shake' ? 'selected' : ''}>Shake Phone</option>
+              <option value="wrist" ${currentMode === 'wrist' ? 'selected' : ''}>Wrist Flick</option>
+              <option value="flicker" ${currentMode === 'flicker' ? 'selected' : ''}>Auto Strobe (500ms)</option>
             </select>
 
-            <div class="custom-voice-box" id="voice-box-${index}" style="display: ${currentMode === 'voice-custom' ? 'flex' : 'none'};" onclick="event.stopPropagation();">
+            <div class="custom-voice-box" id="voice-box-${index}" style="display: ${currentMode === 'voice-custom' ? 'flex' : 'none'};">
               <div class="voice-input-row">
-                <label><i class="fa-solid fa-power-off" style="color:var(--success);"></i> Voice Command to Turn ON:</label>
-                <input type="text" id="voice-on-${index}" class="custom-voice-input" value="${voiceOn}" placeholder="e.g. fan on, activate, start" oninput="updateVoiceCommand(${index}, 'on', this.value)">
+                <label>ON Command:</label>
+                <input type="text" class="custom-voice-input" value="${dev.voiceOn || 'light on'}" oninput="updateVoiceCommand(${index}, 'on', this.value)">
               </div>
               <div class="voice-input-row">
-                <label><i class="fa-solid fa-power-off" style="color:var(--danger);"></i> Voice Command to Turn OFF:</label>
-                <input type="text" id="voice-off-${index}" class="custom-voice-input" value="${voiceOff}" placeholder="e.g. fan off, stop, sleep" oninput="updateVoiceCommand(${index}, 'off', this.value)">
+                <label>OFF Command:</label>
+                <input type="text" class="custom-voice-input" value="${dev.voiceOff || 'light off'}" oninput="updateVoiceCommand(${index}, 'off', this.value)">
               </div>
             </div>
 
-            <div class="clap-trainer-box" id="clap-trainer-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'flex' : 'none'};" onclick="event.stopPropagation();">
+            <div class="clap-trainer-box" id="clap-trainer-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'flex' : 'none'};">
               <div class="trainer-header">
-                <span><i class="fa-solid fa-fingerprint"></i> Biometric Hand Fingerprint</span>
-                <span id="profile-status-${index}" style="color:${hasTrainedClap ? '#10b981' : '#f59e0b'};">
-                  ${hasTrainedClap ? '✓ Profile Saved' : 'No Profile Yet'}
-                </span>
+                <span><i class="fa-solid fa-fingerprint"></i> Biometric Clap</span>
+                <span style="color:${hasTrainedClap ? '#10b981' : '#f59e0b'};">${hasTrainedClap ? '✓ Ready' : 'No Profile'}</span>
               </div>
               <div class="trainer-actions">
-                <button class="btn-train-clap" id="btn-train-clap-${index}" onclick="startClapTraining(${index})">
-                  <i class="fa-solid fa-hands-clapping"></i> Record 5 Personal Claps
-                </button>
+                <button class="btn-train-clap" id="btn-train-clap-${index}" onclick="startClapTraining(${index})">Record 5 Claps</button>
                 ${hasTrainedClap ? `<button class="btn-train-clap" style="flex:0.4; background:#334155;" onclick="clearClapProfile(${index})">Reset</button>` : ''}
               </div>
-
               <div class="clap-cadence-row">
-                <label><i class="fa-solid fa-sliders"></i> Trigger Mode:</label>
+                <label>Trigger:</label>
                 <select class="select-cadence" onchange="updateClapCadence(${index}, this.value)">
-                  <option value="single" ${clapCadence === 'single' ? 'selected' : ''}>Single Clap (👏 Instant)</option>
-                  <option value="double" ${clapCadence === 'double' ? 'selected' : ''}>Double Clap (👏 .. 👏 Safe)</option>
+                  <option value="single" ${(dev.clapCadence || 'single') === 'single' ? 'selected' : ''}>Single Clap (👏)</option>
+                  <option value="double" ${(dev.clapCadence || 'single') === 'double' ? 'selected' : ''}>Double Clap (👏 .. 👏)</option>
                 </select>
               </div>
             </div>
 
             <div class="meter-container" id="meter-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'block' : 'none'};">
               <div class="meter-bar" id="meter-bar-${index}"></div>
-              <div class="meter-threshold-line" title="Trigger Cutoff"></div>
+              <div class="meter-threshold-line"></div>
             </div>
-            
+
             <div class="sensor-feedback" id="feedback-${index}">
               <i class="fa-solid fa-robot"></i> <span>Ready</span>
             </div>
@@ -605,6 +564,60 @@
         `;
         list.appendChild(card);
       });
+    }
+
+    // --- HARDWARE-CONFIRMED TOGGLE LOGIC ---
+    async function handleToggleClick(index, checkboxElem) {
+      const dev = devices[index];
+      const targetState = checkboxElem.checked;
+
+      // 1. Immediately revert checkbox visually until hardware confirms execution
+      checkboxElem.checked = dev.state;
+
+      if (dev.isOnline === false) {
+        alert(`Cannot toggle: "${dev.name}" is powered down.`);
+        return;
+      }
+
+      // 2. Lock UI into verification mode
+      dev._isVerifying = true;
+      render();
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second strict timeout
+
+      try {
+        const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}`, {
+          method: 'GET',
+          mode: 'cors',
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!res.ok) throw new Error("ESP rejected state change");
+
+        // 3. Hardware explicitly verified ACK: Now safely flip state
+        dev.state = targetState;
+        dev.isOnline = true;
+        dev._isVerifying = false;
+        saveState();
+        render();
+
+        if (navigator.vibrate) navigator.vibrate(50);
+
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn(`Toggle failed for ${dev.name}:`, err);
+
+        // 4. Failed: Hardware is off/unreachable. Revert and lock as offline immediately
+        dev._isVerifying = false;
+        dev.isOnline = false;
+        saveState();
+        render();
+
+        alert(`⚠️ Could not reach "${dev.name}". Device is powered off or disconnected. Switch has been locked.`);
+      }
     }
 
     function openModal() { document.getElementById("pairModal").style.display = "flex"; }
@@ -631,74 +644,27 @@
       closeModal();
     }
 
-    // --- PESSIMISTIC ACKNOWLEDGMENT TOGGLE SYSTEM ---
-    async function sendCommand(index, targetState) {
-      const dev = devices[index];
-      
-      if (dev.isOnline === false) {
-        alert(`Cannot toggle: "${dev.name}" is powered down or unreachable.`);
-        return;
-      }
-
-      // 1. Lock the switch in pending/busy state immediately
-      dev._isBusy = true;
-      render();
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s strict hardware timeout
-
-      try {
-        const response = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}`, { 
-          method: 'GET',
-          mode: 'cors',
-          signal: controller.signal 
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          throw new Error(`Device responded with HTTP status ${response.status}`);
-        }
-
-        // 2. Hardware confirmed ACK: now and only now flip the UI state
-        dev.state = targetState;
-        dev.isOnline = true;
-        dev._isBusy = false;
-        saveState();
-        render();
-
-        if (navigator.vibrate) navigator.vibrate(60);
-
-      } catch (err) {
-        clearTimeout(timeoutId);
-        console.warn(`Toggle failed for ${dev.name}. Device did not confirm state:`, err);
-
-        // 3. Revert busy state and immediately mark device as offline
-        dev._isBusy = false;
-        dev.isOnline = false;
-        saveState();
-        render();
-
-        alert(`⚠️ Switch didn't respond: "${dev.name}" appears powered off or offline. Card has been dimmed.`);
-      }
-    }
-
-    function toggleDevice(index) {
-      const dev = devices[index];
-      if (dev.isOnline === false || dev._isBusy) return;
-      sendCommand(index, !dev.state);
-    }
-
     function deleteDevice(index) {
-      const dev = devices[index];
-      if (confirm(`Remove switch ${dev.name}?`)) {
+      if (confirm(`Remove switch "${devices[index].name}"?`)) {
         devices.splice(index, 1);
         saveState();
         render();
       }
     }
 
-    // --- SENSOR & AUDIO HANDLING ---
+    function updateVoiceCommand(index, type, text) {
+      if (type === 'on') devices[index].voiceOn = text.trim().toLowerCase();
+      if (type === 'off') devices[index].voiceOff = text.trim().toLowerCase();
+      saveState();
+    }
+
+    function updateClapCadence(index, cadence) {
+      devices[index].clapCadence = cadence;
+      saveState();
+      handleModeChange(index, "trained-clap");
+    }
+
+    // --- SENSOR MODES (Acoustic / Gestures) ---
     async function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -759,7 +725,7 @@
 
       if (meterBox) meterBox.style.display = "block";
       btn.classList.add("listening");
-      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Waiting for Clap 1 of 5...`;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Clap 1 of 5...`;
       feedback.style.display = "flex";
       feedback.innerHTML = `<span class="ai-badge" style="background:#f59e0b; color:white;">TRAINING</span> <span>Clap 1 now...</span>`;
 
@@ -786,8 +752,8 @@
           const count = clapTrainingBuffer.length;
 
           if (count < 5) {
-            btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Waiting for Clap ${count + 1} of 5...`;
-            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">CLAP ${count} SAVED</span> <span>Clap again (${count + 1} of 5)...</span>`;
+            btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Clap ${count + 1} of 5...`;
+            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">SAVED ${count}</span> <span>Clap again (${count + 1} of 5)...</span>`;
           } else {
             const profile = new Array(16).fill(0);
             for (let i = 0; i < 5; i++) {
@@ -800,8 +766,7 @@
 
             isTrainingClap = false;
             btn.classList.remove("listening");
-            btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Retrain Hand Profile`;
-            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">PROFILE ACTIVE</span> <span>Trained! Ready to listen...</span>`;
+            btn.innerHTML = `Retrain Claps`;
             render();
             handleModeChange(index, "trained-clap");
             return;
@@ -851,103 +816,45 @@
 
       if (mode === "voice-custom") {
         if (voiceBox) voiceBox.style.display = "flex";
-        
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) {
-          feedback.innerHTML = `<span style="color:#ef4444;">Speech Recognition not supported in this browser.</span>`;
+          feedback.innerHTML = `<span style="color:#ef4444;">Voice not supported.</span>`;
           return;
         }
 
         voiceRecognizer = new SpeechRec();
         voiceRecognizer.continuous = true;
         voiceRecognizer.interimResults = false;
-        voiceRecognizer.maxAlternatives = 3;
         voiceRecognizer.lang = 'en-IN';
 
         const updateStatusText = () => {
-          const inputOn = document.getElementById(`voice-on-${index}`);
-          const inputOff = document.getElementById(`voice-off-${index}`);
-          const onWord = (inputOn ? inputOn.value : (devices[index].voiceOn || "on")).trim();
-          const offWord = (inputOff ? inputOff.value : (devices[index].voiceOff || "off")).trim();
-          feedback.innerHTML = `<span class="ai-badge">Voice Active (en-IN)</span> <span>Say "<b>${onWord}</b>" or "<b>${offWord}</b>"</span>`;
+          const onWord = devices[index].voiceOn || "light on";
+          const offWord = devices[index].voiceOff || "light off";
+          feedback.innerHTML = `<span class="ai-badge">Voice</span> <span>"${onWord}" / "${offWord}"</span>`;
         };
         updateStatusText();
 
-        const similarity = (s1, s2) => {
-          let longer = s1.toLowerCase(), shorter = s2.toLowerCase();
-          if (s1.length < s2.length) { longer = s2; shorter = s1; }
-          let longerLength = longer.length;
-          if (longerLength === 0) return 1.0;
-          
-          let costs = [];
-          for (let i = 0; i <= longer.length; i++) {
-            let lastValue = i;
-            for (let j = 0; j <= shorter.length; j++) {
-              if (i === 0) costs[j] = j;
-              else if (j > 0) {
-                let newValue = costs[j - 1];
-                if (longer.charAt(i - 1) !== shorter.charAt(j - 1)) {
-                  newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-                }
-                costs[j - 1] = lastValue;
-                lastValue = newValue;
-              }
-            }
-            if (i > 0) costs[shorter.length] = lastValue;
-          }
-          return (longerLength - costs[shorter.length]) / parseFloat(longerLength);
-        };
-
         voiceRecognizer.onresult = (evt) => {
-          const resultObj = evt.results[evt.results.length - 1];
-          const heardCandidates = [];
-          for (let a = 0; a < resultObj.length; a++) {
-            heardCandidates.push(resultObj[a].transcript.toLowerCase().trim());
-          }
+          const heard = evt.results[evt.results.length - 1][0].transcript.toLowerCase().trim();
+          feedback.innerHTML = `<span class="ai-badge">Heard</span> <span>"${heard}"</span>`;
 
-          const topHeard = heardCandidates[0] || "";
-          feedback.innerHTML = `<span class="ai-badge">Heard</span> <span>"${topHeard}"</span>`;
+          const targetOn = (devices[index].voiceOn || "light on").toLowerCase();
+          const targetOff = (devices[index].voiceOff || "light off").toLowerCase();
 
-          const inputOnElem = document.getElementById(`voice-on-${index}`);
-          const inputOffElem = document.getElementById(`voice-off-${index}`);
-          const liveOn = (inputOnElem ? inputOnElem.value : (devices[index].voiceOn || "")).toLowerCase().trim();
-          const liveOff = (inputOffElem ? inputOffElem.value : (devices[index].voiceOff || "")).toLowerCase().trim();
-
-          const testFuzzyMatch = (targetStr) => {
-            if (!targetStr) return false;
-            const target = targetStr.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
-
-            return heardCandidates.some(phrase => {
-              const cleanPhrase = phrase.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
-              if (cleanPhrase.includes(target) || target.includes(cleanPhrase)) return true;
-
-              const pWords = cleanPhrase.split(/\s+/);
-              const tWords = target.split(/\s+/);
-              const wordsMatch = tWords.every(tw => pWords.some(pw => similarity(pw, tw) > 0.70));
-              if (wordsMatch) return true;
-
-              return similarity(cleanPhrase, target) >= 0.72;
-            });
-          };
-
-          if (testFuzzyMatch(liveOn)) {
-            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">MATCH</span> <span>Matched "${liveOn}"! Sending to device...</span>`;
-            sendCommand(index, true);
-            setTimeout(updateStatusText, 1400);
-          } else if (testFuzzyMatch(liveOff)) {
-            feedback.innerHTML = `<span class="ai-badge" style="background:#ef4444; color:white;">MATCH</span> <span>Matched "${liveOff}"! Sending to device...</span>`;
-            sendCommand(index, false);
-            setTimeout(updateStatusText, 1400);
+          if (heard.includes(targetOn)) {
+            const chk = document.getElementById(`toggle-input-${index}`);
+            if (chk) { chk.checked = true; handleToggleClick(index, chk); }
+          } else if (heard.includes(targetOff)) {
+            const chk = document.getElementById(`toggle-input-${index}`);
+            if (chk) { chk.checked = false; handleToggleClick(index, chk); }
           }
         };
 
-        voiceRecognizer.onerror = (e) => console.warn("Voice error:", e.error);
         voiceRecognizer.onend = () => {
           if (devices[index].mode === "voice-custom") {
             try { voiceRecognizer.start(); } catch(e) {}
           }
         };
-
         try { voiceRecognizer.start(); } catch(e) {}
       }
 
@@ -959,13 +866,12 @@
         const cadence = devices[index].clapCadence || "single";
 
         if (!profile) {
-          feedback.innerHTML = `<span class="ai-badge">Setup</span> <span>Click "Record 5 Personal Claps" above to train.</span>`;
+          feedback.innerHTML = `<span class="ai-badge">Setup</span> <span>Click "Record 5 Claps" to train.</span>`;
           return;
         }
 
         await initAudio();
-        const modeLabel = cadence === "double" ? "Double Clap (👏 .. 👏)" : "Single Clap (👏)";
-        feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">Active</span> <span>Listening for YOUR ${modeLabel}...</span>`;
+        feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">Listening</span> <span>Hand Claps Active...</span>`;
 
         const timeData = new Uint8Array(analyser.fftSize);
         const freqData = new Uint8Array(analyser.frequencyBinCount);
@@ -979,24 +885,12 @@
           analyser.getByteFrequencyData(freqData);
 
           const fp = extractFingerprint(freqData, timeData);
-          const matchScore = (fp.peak > 14 && fp.crest > 2.5) 
-            ? computeCosineSimilarity(fp.bands, profile) 
-            : 0;
-
+          const matchScore = (fp.peak > 14 && fp.crest > 2.5) ? computeCosineSimilarity(fp.bands, profile) : 0;
           const matchPct = Math.round(matchScore * 100);
-          const liveAmpPct = Math.min(100, Math.round((fp.peak / 45) * 100));
 
           if (meterBar) {
-            if (isWaitingForSecond) {
-              meterBar.style.width = '75%';
-              meterBar.style.background = '#f59e0b';
-            } else if (matchScore > 0.65) {
-              meterBar.style.width = `${matchPct}%`;
-              meterBar.style.background = '#10b981';
-            } else {
-              meterBar.style.width = `${liveAmpPct}%`;
-              meterBar.style.background = '#38bdf8';
-            }
+            meterBar.style.width = `${Math.min(100, Math.round((fp.peak / 45) * 100))}%`;
+            meterBar.style.background = matchScore > 0.65 ? '#10b981' : '#38bdf8';
           }
 
           const now = Date.now();
@@ -1007,30 +901,23 @@
               if (now - lastTrigger > 1200) {
                 armed = false;
                 lastTrigger = now;
-                feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">MATCH</span> <span>✓ Single Clap Confirmed (${matchPct}%)</span>`;
-                toggleDevice(index);
-                setTimeout(() => {
-                  armed = true;
-                  if (feedback) feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">Active</span> <span>Listening for YOUR Single Clap (👏)...</span>`;
-                }, 1000);
+                const chk = document.getElementById(`toggle-input-${index}`);
+                if (chk) { chk.checked = !devices[index].state; handleToggleClick(index, chk); }
+                setTimeout(() => { armed = true; }, 1000);
               }
             } else {
               armed = false;
               if (!isWaitingForSecond) {
                 isWaitingForSecond = true;
                 firstClapTime = now;
-                feedback.innerHTML = `<span class="ai-badge" style="background:#f59e0b; color:white;">1st CLAP</span> <span>Clap once more quickly (👏)...</span>`;
                 setTimeout(() => { armed = true; }, 150);
               } else {
                 const delta = now - firstClapTime;
                 if (delta >= 150 && delta <= 800) {
-                  feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">MATCH</span> <span>✓ Double Clap Confirmed (${matchPct}%)</span>`;
-                  toggleDevice(index);
+                  const chk = document.getElementById(`toggle-input-${index}`);
+                  if (chk) { chk.checked = !devices[index].state; handleToggleClick(index, chk); }
                   isWaitingForSecond = false;
-                  setTimeout(() => {
-                    armed = true;
-                    if (feedback) feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">Active</span> <span>Listening for YOUR Double Clap (👏 .. 👏)...</span>`;
-                  }, 1100);
+                  setTimeout(() => { armed = true; }, 1100);
                 }
               }
             }
@@ -1039,7 +926,6 @@
           if (isWaitingForSecond && (now - firstClapTime > 800)) {
             isWaitingForSecond = false;
             armed = true;
-            feedback.innerHTML = `<span class="ai-badge" style="background:#10b981; color:white;">Active</span> <span>Listening for YOUR Double Clap (👏 .. 👏)...</span>`;
           }
 
           if (!armed && fp.peak < 8 && !isWaitingForSecond && (now - lastTrigger > 800)) {
@@ -1057,10 +943,11 @@
         window.ondevicemotion = (e) => {
           const acc = e.accelerationIncludingGravity;
           if (!acc) return;
-          const force = Math.sqrt(acc.x * acc.x + mechanical_g = 9.81) - 9.81;
+          const force = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z) - 9.81;
           if (force > 11.0 && Date.now() - lastShake > 1500) {
             lastShake = Date.now();
-            toggleDevice(index);
+            const chk = document.getElementById(`toggle-input-${index}`);
+            if (chk) { chk.checked = !devices[index].state; handleToggleClick(index, chk); }
           }
         };
       }
@@ -1074,18 +961,10 @@
           const lateral = Math.sqrt(acc.x * acc.x + acc.y * acc.y);
           if (lateral > 14.0 && Date.now() - lastFlick > 1200) {
             lastFlick = Date.now();
-            toggleDevice(index);
+            const chk = document.getElementById(`toggle-input-${index}`);
+            if (chk) { chk.checked = !devices[index].state; handleToggleClick(index, chk); }
           }
         };
-      }
-
-      else if (mode === "flicker") {
-        feedback.innerHTML = `<i class="fa-solid fa-bolt"></i> <span>Strobing every 500ms...</span>`;
-        let st = false;
-        diyIntervals[index] = setInterval(() => {
-          st = !st;
-          sendCommand(index, st);
-        }, 500);
       }
     }
 
