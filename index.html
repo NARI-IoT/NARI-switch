@@ -247,7 +247,9 @@
     .form-group { display: flex; flex-direction: column; gap: 4px; }
     .form-group label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
 
-    .btn-primary { background: var(--primary); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .btn-primary { background: var(--primary); color: white; border: none; padding: 11px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.84rem; }
+    .btn-secondary { background: rgba(255, 255, 255, 0.08); border: 1px solid var(--card-border); color: var(--text); padding: 9px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.76rem; text-decoration: none; }
+    
     .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .theme-tile { padding: 10px; border-radius: 8px; border: 1px solid var(--card-border); display: flex; align-items: center; gap: 8px; font-size: 0.78rem; cursor: pointer; }
     .swatch { width: 16px; height: 16px; border-radius: 50%; }
@@ -262,15 +264,15 @@
     .btn-train-clap.listening { background: #dc2626; animation: pulse 1s infinite alternate; }
 
     .sensor-feedback { font-size: 0.74rem; color: #fbbf24; display: flex; align-items: center; gap: 6px; font-weight: 500; margin-top: 4px; }
-    .ai-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; background: rgba(52, 211, 153, 0.16); color: var(--accent); font-size: 0.68rem; font-weight: 700; }
 
     .scan-status-box { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 8px; text-align: center; }
     .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
     .progress-fill { width: 0%; height: 100%; background: var(--primary); transition: width 0.15s linear; }
 
-    .subnet-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-    .chip { background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); color: var(--accent); font-size: 0.68rem; padding: 3px 8px; border-radius: 6px; cursor: pointer; }
-    .chip:hover { background: rgba(52, 211, 153, 0.2); }
+    /* Customer Onboarding Banner */
+    .onboarding-steps { display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.25); border: 1px solid var(--card-border); padding: 12px; border-radius: 12px; }
+    .onboard-step { display: flex; gap: 10px; align-items: flex-start; font-size: 0.74rem; color: var(--text); }
+    .onboard-num { width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -289,7 +291,7 @@
   <div class="sync-status" id="syncStatus">Storage: Local</div>
   <div class="container" id="deviceList"></div>
 
-  <!-- Auto Discovery & Direct IP Pair Modal -->
+  <!-- Consumer-Friendly Add Device Modal -->
   <div class="modal-overlay" id="scanModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -297,35 +299,32 @@
         <button class="btn-close" onclick="closeScanModal()">✕</button>
       </div>
       
-      <!-- Option 1: Direct IP entry -->
-      <div class="form-group">
-        <label>Direct Local IP (Instant Connect):</label>
-        <div style="display:flex; gap:6px;">
-          <input type="text" id="directIpInput" placeholder="e.g. 192.168.1.50">
-          <button class="btn-primary" style="padding:9px 12px; white-space:nowrap;" onclick="addDirectIp()">Add</button>
+      <div class="onboarding-steps">
+        <div class="onboard-step">
+          <div class="onboard-num">1</div>
+          <div>Connect your phone or laptop to <b>NARI-Smart-Switch</b> in Wi-Fi settings.</div>
+        </div>
+        <div class="onboard-step">
+          <div class="onboard-num">2</div>
+          <div>Choose your home Wi-Fi and enter its password on the popup screen.</div>
+        </div>
+        <div class="onboard-step">
+          <div class="onboard-num">3</div>
+          <div>Return here and tap the button below.</div>
         </div>
       </div>
 
-      <div style="text-align:center; font-size:0.7rem; color:var(--text-muted); margin:2px 0;">— OR AUTO-DISCOVER —</div>
+      <!-- Wi-Fi Settings Open Shortcut -->
+      <a href="ms-settings:network-wifi" class="btn-secondary" id="wifiShortcutBtn" onclick="openWifiNotice()">
+        <i class="fa-solid fa-wifi"></i> Open Wi-Fi Settings
+      </a>
 
-      <!-- Option 2: Subnet Auto Scan -->
-      <div class="form-group">
-        <label>Router Subnet Range:</label>
-        <input type="text" id="subnetPrefix" value="192.168.1" placeholder="e.g. 192.168.1">
-        <div class="subnet-chips">
-          <span class="chip" onclick="setSubnet('192.168.1')">192.168.1</span>
-          <span class="chip" onclick="setSubnet('192.168.0')">192.168.0</span>
-          <span class="chip" onclick="setSubnet('192.168.29')">192.168.29 (Jio)</span>
-          <span class="chip" onclick="setSubnet('192.168.43')">192.168.43 (Hotspot)</span>
-        </div>
-      </div>
-
-      <button class="btn-primary" id="btnStartScan" onclick="startSubnetScan()">
-        <i class="fa-solid fa-satellite-dish"></i> Start Discovery Scan
+      <button class="btn-primary" id="btnStartScan" onclick="startAutomatedCustomerScan()">
+        <i class="fa-solid fa-satellite-dish"></i> I'm Connected, Add Switch
       </button>
 
-      <div class="scan-status-box" id="scanStatusBox" style="display:none; margin-top:6px;">
-        <span id="scanStatusText" style="font-size:0.74rem; font-weight:600; color:var(--accent);">Scanning...</span>
+      <div class="scan-status-box" id="scanStatusBox" style="display:none; margin-top:4px;">
+        <span id="scanStatusText" style="font-size:0.74rem; font-weight:600; color:var(--accent);">Detecting switch...</span>
         <div class="progress-bar">
           <div class="progress-fill" id="scanProgress"></div>
         </div>
@@ -459,7 +458,6 @@
   </div>
 
   <script>
-    // Security Key (Matches firmware query verification)
     const NARI_AUTH_TOKEN = "NARI_SEC_98a7df8a7sdf6a5sd4f";
 
     const firebaseConfig = {
@@ -609,7 +607,6 @@
       }
     }
 
-    // Health check using query param token to avoid CORS preflight blocks
     async function checkDeviceHealth(dev) {
       const controller = new AbortController();
       const startT = performance.now();
@@ -674,7 +671,7 @@
     function openScanModal() {
       document.getElementById("scanStatusBox").style.display = "none";
       document.getElementById("btnStartScan").disabled = false;
-      document.getElementById("btnStartScan").innerHTML = `<i class="fa-solid fa-satellite-dish"></i> Start Discovery Scan`;
+      document.getElementById("btnStartScan").innerHTML = `<i class="fa-solid fa-satellite-dish"></i> I'm Connected, Add Switch`;
       document.getElementById("scanModal").style.display = "flex";
     }
 
@@ -682,49 +679,16 @@
       document.getElementById("scanModal").style.display = "none";
     }
 
-    function setSubnet(val) {
-      document.getElementById("subnetPrefix").value = val;
+    function openWifiNotice() {
+      // Mobile fallback if protocol handler is unsupported
+      setTimeout(() => {
+        alert("Please open your phone's Wi-Fi Settings and select 'NARI-Smart-Switch'");
+      }, 300);
     }
 
-    // Direct manual entry fallback
-    async function addDirectIp() {
-      const ip = document.getElementById("directIpInput").value.trim();
-      if (!ip) return alert("Please enter a valid IP address.");
-
-      const probe = await probeIp(ip);
-      if (probe.found) {
-        if (!devices.some(d => d.ip === ip)) {
-          devices.push({
-            name: `Switch ${devices.length + 1}`,
-            ip: ip,
-            state: false,
-            mode: "none",
-            voiceOn: "light on",
-            voiceOff: "light off",
-            clapProfile: null,
-            clapCadence: "single",
-            bootState: "LAST",
-            bgPhoto: null,
-            proximityThreshold: 65,
-            wifiRssi: probe.rssi,
-            isOnline: true
-          });
-          saveState();
-          render();
-          alert(`✓ Switch at ${ip} added successfully!`);
-          closeScanModal();
-        } else {
-          alert("Device with this IP already exists.");
-        }
-      } else {
-        alert(`Could not connect to ${ip}. Ensure device is powered on and matches your Wi-Fi.`);
-      }
-    }
-
-    // Direct probe without CORS preflight triggers
     async function probeIp(ip) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000);
+      const timeoutId = setTimeout(() => controller.abort(), 950);
       try {
         const res = await fetch(`http://${ip}/ping?k=${NARI_AUTH_TOKEN}`, { 
           method: 'GET', 
@@ -744,8 +708,8 @@
       }
     }
 
-    async function startSubnetScan() {
-      const prefix = document.getElementById("subnetPrefix").value.trim() || "192.168.1";
+    // Fully Automated Multi-Subnet Discovery (No customer inputs)
+    async function startAutomatedCustomerScan() {
       const statusBox = document.getElementById("scanStatusBox");
       const statusText = document.getElementById("scanStatusText");
       const prog = document.getElementById("scanProgress");
@@ -755,56 +719,67 @@
       statusBox.style.display = "flex";
       isScanning = true;
 
+      // Scan all standard consumer router subnets automatically
+      const subnetsToScan = ["192.168.1", "192.168.0", "192.168.29", "192.168.43"];
       let newlyAdded = 0;
-      const totalHosts = 254;
-      const batchSize = 25;
 
-      for (let i = 1; i <= totalHosts; i += batchSize) {
-        const batch = [];
-        for (let j = i; j < i + batchSize && j <= totalHosts; j++) {
-          batch.push(`${prefix}.${j}`);
-        }
+      for (let s = 0; s < subnetsToScan.length; s++) {
+        const prefix = subnetsToScan[s];
+        statusText.innerText = `Searching your network...`;
+        
+        // Parallel batches for fast response
+        const totalHosts = 254;
+        const batchSize = 30;
 
-        const pct = Math.round((i / totalHosts) * 100);
-        prog.style.width = `${pct}%`;
-        statusText.innerText = `Sweeping ${prefix}.${i} - ${prefix}.${Math.min(i + batchSize - 1, totalHosts)}...`;
+        for (let i = 1; i <= totalHosts; i += batchSize) {
+          const batch = [];
+          for (let j = i; j < i + batchSize && j <= totalHosts; j++) {
+            batch.push(`${prefix}.${j}`);
+          }
 
-        const results = await Promise.all(batch.map(ip => probeIp(ip)));
-        results.forEach(res => {
-          if (res.found) {
-            const exists = devices.some(d => d.ip === res.ip);
-            if (!exists) {
-              devices.push({
-                name: `Switch ${devices.length + 1}`,
-                ip: res.ip,
-                state: false,
-                mode: "none",
-                voiceOn: "light on",
-                voiceOff: "light off",
-                clapProfile: null,
-                clapCadence: "single",
-                bootState: "LAST",
-                bgPhoto: null,
-                proximityThreshold: 65,
-                wifiRssi: res.rssi,
-                isOnline: true
-              });
-              newlyAdded++;
+          const overallPct = Math.round(((s * totalHosts + i) / (subnetsToScan.length * totalHosts)) * 100);
+          prog.style.width = `${overallPct}%`;
+
+          const results = await Promise.all(batch.map(ip => probeIp(ip)));
+          for (const res of results) {
+            if (res.found) {
+              const exists = devices.some(d => d.ip === res.ip);
+              if (!exists) {
+                devices.push({
+                  name: `Smart Switch ${devices.length + 1}`,
+                  ip: res.ip,
+                  state: false,
+                  mode: "none",
+                  voiceOn: "light on",
+                  voiceOff: "light off",
+                  clapProfile: null,
+                  clapCadence: "single",
+                  bootState: "LAST",
+                  bgPhoto: null,
+                  proximityThreshold: 65,
+                  wifiRssi: res.rssi,
+                  isOnline: true
+                });
+                newlyAdded++;
+              }
             }
           }
-        });
+          if (newlyAdded > 0) break; // Found the device; stop scanning
+        }
+        if (newlyAdded > 0) break;
       }
 
       prog.style.width = `100%`;
-      statusText.innerText = newlyAdded > 0 
-        ? `Scan complete! Added ${newlyAdded} switch(es).` 
-        : `No devices found on ${prefix}.x. Try another subnet range above.`;
-        
-      btn.disabled = false;
+      if (newlyAdded > 0) {
+        statusText.innerText = `✓ Device Found & Added!`;
+        saveState();
+        render();
+        setTimeout(closeScanModal, 1000);
+      } else {
+        statusText.innerText = `No switch detected. Make sure device is powered on.`;
+        btn.disabled = false;
+      }
       isScanning = false;
-      saveState();
-      render();
-      if (newlyAdded > 0) setTimeout(closeScanModal, 1200);
     }
 
     function render() {
@@ -814,7 +789,7 @@
       if (devices.length === 0) {
         list.innerHTML = `
           <div style="grid-column: span 2; text-align:center; padding:35px 10px; color:var(--text-muted);">
-            <p>No switches found.<br>Tap <b>+</b> to discover or enter your switch IP.</p>
+            <p>No switches found.<br>Tap <b>+</b> to add your switch.</p>
           </div>
         `;
         return;
