@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#10281e">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+  <!-- Firebase Web SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -236,8 +237,9 @@
     .drawer-trigger { font-size: 0.65rem; color: rgba(255,255,255,0.45); cursor: pointer; }
     .wifi-badge { font-size: 0.68rem; color: var(--accent); display: flex; align-items: center; gap: 3px; }
 
+    /* Modals */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none; justify-content: center; align-items: center; padding: 16px; z-index: 100; }
-    .modal-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px; width: 100%; max-width: 360px; padding: 18px; display: flex; flex-direction: column; gap: 11px; max-height: 90vh; overflow-y: auto; }
+    .modal-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px; width: 100%; max-width: 380px; padding: 18px; display: flex; flex-direction: column; gap: 11px; max-height: 90vh; overflow-y: auto; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 0.95rem; }
     .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.15rem; cursor: pointer; }
     
@@ -250,9 +252,18 @@
     .theme-tile { padding: 10px; border-radius: 8px; border: 1px solid var(--card-border); display: flex; align-items: center; gap: 8px; font-size: 0.78rem; cursor: pointer; }
     .swatch { width: 16px; height: 16px; border-radius: 50%; }
 
-    .range-box { display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); }
-    .range-box label { font-size: 0.72rem; color: var(--accent); display: flex; justify-content: space-between; }
+    /* Voice, Clap & Proximity Controls */
+    .mode-subbox { display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); }
+    .mode-subbox label { font-size: 0.72rem; color: var(--accent); display: flex; justify-content: space-between; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
+
+    .meter-container { width: 100%; height: 6px; background: #0b1a13; border-radius: 3px; overflow: hidden; position: relative; border: 1px solid var(--card-border); }
+    .meter-bar { width: 0%; height: 100%; background: var(--accent); transition: width 0.04s ease-out; }
+    .btn-train-clap { padding: 8px; background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); border-radius: 8px; color: white; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-train-clap.listening { background: #dc2626; animation: pulse 1s infinite alternate; }
+
+    .sensor-feedback { font-size: 0.74rem; color: #fbbf24; display: flex; align-items: center; gap: 6px; font-weight: 500; margin-top: 4px; }
+    .ai-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; background: rgba(52, 211, 153, 0.16); color: var(--accent); font-size: 0.68rem; font-weight: 700; }
 
     .scan-status-box { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 8px; text-align: center; }
     .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
@@ -340,7 +351,7 @@
     </div>
   </div>
 
-  <!-- AI & Gesture Modes Modal -->
+  <!-- AI & Gesture Modes Modal (All Modes Restored) -->
   <div class="modal-overlay" id="aiModesModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -353,18 +364,64 @@
         <select id="aiModeSelect" onchange="updateSelectedAiMode(this.value)">
           <option value="none">Standard Manual</option>
           <option value="auto-proximity">Auto Proximity (Room Presence)</option>
+          <option value="voice-custom">Voice Commands (en-IN)</option>
+          <option value="trained-clap">Personalized Fingerprint Clap</option>
+          <option value="shake">Gesture: Shake Phone</option>
+          <option value="wrist">Gesture: Wrist Flick</option>
+          <option value="flicker">DIY: Auto-Strobe Cycle (500ms)</option>
         </select>
       </div>
 
-      <div class="range-box" id="proximityConfig" style="display:none;">
+      <!-- Auto Proximity Config -->
+      <div class="mode-subbox" id="proximityConfig" style="display:none;">
         <label>
           <span>Presence Distance Trigger</span>
-          <b id="proximityLabel">65 ms (Room Range)</b>
+          <b id="proximityLabel">65 ms</b>
         </label>
         <input type="range" id="proximitySlider" min="20" max="220" value="65" oninput="adjustProximityTrigger(this.value)">
-        <p style="font-size:0.68rem; color:var(--text-muted); margin-top:4px;">
-          Turns ON when you step into the room; turns OFF when you walk away.
+        <p style="font-size:0.68rem; color:var(--text-muted);">
+          Turns ON when entering room range; turns OFF when stepping outside.
         </p>
+      </div>
+
+      <!-- Custom Voice Config -->
+      <div class="mode-subbox" id="voiceConfig" style="display:none;">
+        <div class="form-group">
+          <label>Command for ON:</label>
+          <input type="text" id="voiceOnInput" placeholder="e.g. fan on, activate" oninput="updateVoiceText('on', this.value)">
+        </div>
+        <div class="form-group">
+          <label>Command for OFF:</label>
+          <input type="text" id="voiceOffInput" placeholder="e.g. fan off, sleep" oninput="updateVoiceText('off', this.value)">
+        </div>
+      </div>
+
+      <!-- Clap Training Config -->
+      <div class="mode-subbox" id="clapConfig" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.72rem; color:var(--accent); font-weight:600;">Hand Biometric Profile:</span>
+          <span id="clapStatusLabel" style="font-size:0.72rem; color:#f59e0b;">Not Trained</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-train-clap" id="btnTrainClap" style="flex:1;" onclick="startClapTraining()">
+            <i class="fa-solid fa-hands-clapping"></i> Record 5 Claps
+          </button>
+          <button class="btn-train-clap" style="flex:0.4; background:#334155;" onclick="clearClapProfile()">Reset</button>
+        </div>
+        <div class="form-group" style="margin-top:4px;">
+          <label>Trigger Cadence:</label>
+          <select id="clapCadenceSelect" onchange="updateClapCadence(this.value)">
+            <option value="single">Single Clap (Instant)</option>
+            <option value="double">Double Clap (Safe)</option>
+          </select>
+        </div>
+        <div class="meter-container">
+          <div class="meter-bar" id="modalMeterBar"></div>
+        </div>
+      </div>
+
+      <div class="sensor-feedback" id="modalFeedback" style="display:none;">
+        <i class="fa-solid fa-robot"></i> <span id="modalFeedbackText">Ready</span>
       </div>
 
       <button class="btn-primary" onclick="closeAiModal()">Done</button>
@@ -388,9 +445,8 @@
   </div>
 
   <script>
-    // --- COMMERCIAL TAMPER & REVERSE-ENGINEERING DEFENSE ---
+    // --- COMMERCIAL SECURITY: ANTI-DEBUGGER & INSPECTION BLOCK ---
     (function protectProduction() {
-      // 1. Anti-Debugger / DevTools Breakpoint Trap
       setInterval(() => {
         const start = performance.now();
         debugger;
@@ -400,12 +456,10 @@
         }
       }, 1000);
 
-      // 2. Disable Standard Right-Click Context Menu
       document.addEventListener('contextmenu', (e) => {
         if (!e.target.closest('.card')) e.preventDefault();
       });
 
-      // 3. Block Inspection Keyboard Shortcuts
       document.addEventListener('keydown', (e) => {
         if (
           e.key === "F12" || 
@@ -418,7 +472,6 @@
       });
     })();
 
-    // Shared cryptographic authorization key matching firmware
     const NARI_AUTH_TOKEN = "NARI_SEC_98a7df8a7sdf6a5sd4f";
 
     const firebaseConfig = {
@@ -441,6 +494,16 @@
     let activeDeviceIndex = null;
     let idleTimer = null;
     let isScanning = false;
+
+    // Acoustic & Sensor Engines
+    let audioCtx = null;
+    let micStream = null;
+    let analyser = null;
+    let animFrame = null;
+    let voiceRecognizer = null;
+    let diyIntervals = {};
+    let isTrainingClap = false;
+    let clapTrainingBuffer = [];
 
     const savedTheme = localStorage.getItem("nari_theme") || "default";
     applyTheme(savedTheme, false);
@@ -520,6 +583,43 @@
           updatedAt: Date.now(),
           devices: devices
         }).catch(() => {});
+      }
+    }
+
+    // --- 10-MINUTE EXPIRY URL PAIRING PARSER ---
+    function checkUrlPairing() {
+      const params = new URLSearchParams(window.location.search);
+      const addName = params.get('add');
+      const addIp = params.get('ip');
+      const expiresAt = parseInt(params.get('exp'), 10);
+
+      if (addName && addIp) {
+        const now = Date.now();
+        if (!expiresAt || isNaN(expiresAt) || now > expiresAt) {
+          alert("Pairing link expired (10-minute security limit). Ask the owner for a fresh link.");
+          window.history.replaceState({}, document.title, window.location.pathname);
+          return;
+        }
+
+        if (!devices.some(d => d.ip === addIp)) {
+          devices.push({
+            name: decodeURIComponent(addName),
+            ip: decodeURIComponent(addIp),
+            state: false,
+            mode: "none",
+            voiceOn: "light on",
+            voiceOff: "light off",
+            clapProfile: null,
+            clapCadence: "single",
+            bootState: "LAST",
+            bgPhoto: null,
+            proximityThreshold: 65,
+            isOnline: true
+          });
+          saveState();
+          alert(`Added "${decodeURIComponent(addName)}"!`);
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
 
@@ -659,6 +759,10 @@
                 ip: res.ip,
                 state: false,
                 mode: "none",
+                voiceOn: "light on",
+                voiceOff: "light off",
+                clapProfile: null,
+                clapCadence: "single",
                 bootState: "LAST",
                 bgPhoto: null,
                 proximityThreshold: 65,
@@ -687,7 +791,7 @@
       if (devices.length === 0) {
         list.innerHTML = `
           <div style="grid-column: span 2; text-align:center; padding:35px 10px; color:var(--text-muted);">
-            <p>No switches found.<br>Tap <b>+</b> to discover devices on your Wi-Fi.</p>
+            <p>No switches found.<br>Tap <b>+</b> to discover switches on your Wi-Fi.</p>
           </div>
         `;
         return;
@@ -813,6 +917,7 @@
       if (!isVisible) menu.classList.add('show');
     }
 
+    // --- BULB MODAL SETTINGS ---
     function openBulbModal(index, e) {
       e.stopPropagation();
       activeDeviceIndex = index;
@@ -866,6 +971,55 @@
       render();
     }
 
+    // --- RESTORED ALL AI & GESTURE SENSOR ENGINES ---
+    async function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      if (!micStream) micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!analyser) {
+        const source = audioCtx.createMediaStreamSource(micStream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.05;
+        source.connect(analyser);
+      }
+    }
+
+    function extractFingerprint(freqData, timeData) {
+      let peak = 0, sumSq = 0;
+      for (let i = 0; i < timeData.length; i++) {
+        const dev = Math.abs(timeData[i] - 128);
+        if (dev > peak) peak = dev;
+        sumSq += dev * dev;
+      }
+      const rms = Math.sqrt(sumSq / timeData.length) || 1;
+      const crest = peak / rms;
+
+      const bands = new Float32Array(16);
+      let totalMag = 0;
+      for (let b = 0; b < 16; b++) {
+        let sum = 0;
+        for (let j = b * 8; j < (b + 1) * 8; j++) sum += freqData[j];
+        bands[b] = sum / 8;
+        totalMag += bands[b];
+      }
+      if (totalMag > 0) {
+        for (let b = 0; b < 16; b++) bands[b] /= totalMag;
+      }
+      return { bands, crest, peak };
+    }
+
+    function computeCosineSimilarity(vecA, vecB) {
+      let dot = 0, normA = 0, normB = 0;
+      for (let i = 0; i < vecA.length; i++) {
+        dot += vecA[i] * vecB[i];
+        normA += vecA[i] * vecA[i];
+        normB += vecB[i] * vecB[i];
+      }
+      if (normA === 0 || normB === 0) return 0;
+      return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
     function openAiModal(index, e) {
       e.stopPropagation();
       activeDeviceIndex = index;
@@ -874,16 +1028,33 @@
       document.getElementById("aiModeSelect").value = dev.mode || "none";
       document.getElementById("proximitySlider").value = dev.proximityThreshold || 65;
       document.getElementById("proximityLabel").innerText = `${dev.proximityThreshold || 65} ms`;
+      document.getElementById("voiceOnInput").value = dev.voiceOn || "light on";
+      document.getElementById("voiceOffInput").value = dev.voiceOff || "light off";
+      document.getElementById("clapCadenceSelect").value = dev.clapCadence || "single";
+
+      const hasTrainedClap = dev.clapProfile && dev.clapProfile.length > 0;
+      const clapLabel = document.getElementById("clapStatusLabel");
+      clapLabel.innerText = hasTrainedClap ? "✓ Profile Active" : "Not Trained";
+      clapLabel.style.color = hasTrainedClap ? "#10b981" : "#f59e0b";
+
       updateSelectedAiMode(dev.mode || "none");
       document.getElementById("aiModesModal").style.display = "flex";
     }
+
     function closeAiModal() { document.getElementById("aiModesModal").style.display = "none"; }
 
-    function updateSelectedAiMode(mode) {
+    function updateVoiceText(type, val) {
       if (activeDeviceIndex === null) return;
-      devices[activeDeviceIndex].mode = mode;
-      document.getElementById("proximityConfig").style.display = (mode === 'auto-proximity') ? 'flex' : 'none';
+      if (type === 'on') devices[activeDeviceIndex].voiceOn = val.trim().toLowerCase();
+      if (type === 'off') devices[activeDeviceIndex].voiceOff = val.trim().toLowerCase();
       saveState();
+    }
+
+    function updateClapCadence(val) {
+      if (activeDeviceIndex === null) return;
+      devices[activeDeviceIndex].clapCadence = val;
+      saveState();
+      updateSelectedAiMode("trained-clap");
     }
 
     function adjustProximityTrigger(val) {
@@ -891,6 +1062,276 @@
       devices[activeDeviceIndex].proximityThreshold = parseInt(val, 10);
       document.getElementById("proximityLabel").innerText = `${val} ms`;
       saveState();
+    }
+
+    async function startClapTraining() {
+      if (activeDeviceIndex === null) return;
+      await initAudio();
+      isTrainingClap = true;
+      clapTrainingBuffer = [];
+
+      const btn = document.getElementById("btnTrainClap");
+      const meterBar = document.getElementById("modalMeterBar");
+      const feedback = document.getElementById("modalFeedback");
+      const feedbackText = document.getElementById("modalFeedbackText");
+
+      feedback.style.display = "flex";
+      btn.classList.add("listening");
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Clap 1 of 5...`;
+      feedbackText.innerText = "Listening for personal clap 1...";
+
+      const timeData = new Uint8Array(analyser.fftSize);
+      const freqData = new Uint8Array(analyser.frequencyBinCount);
+      let armed = true;
+
+      const trainLoop = () => {
+        if (!isTrainingClap) return;
+        analyser.getByteTimeDomainData(timeData);
+        analyser.getByteFrequencyData(freqData);
+
+        const fp = extractFingerprint(freqData, timeData);
+        if (meterBar) {
+          meterBar.style.width = `${Math.min(100, Math.round((fp.peak / 45) * 100))}%`;
+          meterBar.style.background = fp.peak > 14 ? '#10b981' : '#34d399';
+        }
+
+        if (fp.peak > 14 && fp.crest > 2.5 && armed) {
+          armed = false;
+          clapTrainingBuffer.push(Array.from(fp.bands));
+          const count = clapTrainingBuffer.length;
+
+          if (count < 5) {
+            btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Clap ${count + 1} of 5...`;
+            feedbackText.innerText = `Recorded ${count}! Clap again...`;
+          } else {
+            const profile = new Array(16).fill(0);
+            for (let i = 0; i < 5; i++) {
+              for (let b = 0; b < 16; b++) profile[b] += clapTrainingBuffer[i][b];
+            }
+            for (let b = 0; b < 16; b++) profile[b] /= 5;
+
+            devices[activeDeviceIndex].clapProfile = profile;
+            saveState();
+
+            isTrainingClap = false;
+            btn.classList.remove("listening");
+            btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Retrain Claps`;
+            document.getElementById("clapStatusLabel").innerText = "✓ Profile Active";
+            document.getElementById("clapStatusLabel").style.color = "#10b981";
+            feedbackText.innerText = "Biometric hand profile saved successfully!";
+            updateSelectedAiMode("trained-clap");
+            return;
+          }
+          setTimeout(() => { armed = true; }, 350);
+        }
+        requestAnimationFrame(trainLoop);
+      };
+      trainLoop();
+    }
+
+    function clearClapProfile() {
+      if (activeDeviceIndex === null) return;
+      devices[activeDeviceIndex].clapProfile = null;
+      saveState();
+      document.getElementById("clapStatusLabel").innerText = "Not Trained";
+      document.getElementById("clapStatusLabel").style.color = "#f59e0b";
+      updateSelectedAiMode("trained-clap");
+    }
+
+    async function updateSelectedAiMode(mode) {
+      if (activeDeviceIndex === null) return;
+      const index = activeDeviceIndex;
+      devices[index].mode = mode;
+      saveState();
+
+      document.getElementById("proximityConfig").style.display = (mode === 'auto-proximity') ? 'flex' : 'none';
+      document.getElementById("voiceConfig").style.display = (mode === 'voice-custom') ? 'flex' : 'none';
+      document.getElementById("clapConfig").style.display = (mode === 'trained-clap') ? 'flex' : 'none';
+
+      const feedback = document.getElementById("modalFeedback");
+      const feedbackText = document.getElementById("modalFeedbackText");
+      const meterBar = document.getElementById("modalMeterBar");
+
+      if (animFrame) cancelAnimationFrame(animFrame);
+      isTrainingClap = false;
+      if (voiceRecognizer) {
+        try { voiceRecognizer.stop(); } catch(e) {}
+        voiceRecognizer = null;
+      }
+      window.ondevicemotion = null;
+      if (diyIntervals[index]) clearInterval(diyIntervals[index]);
+
+      if (mode === "none") {
+        feedback.style.display = "none";
+        return;
+      }
+      feedback.style.display = "flex";
+
+      if (mode === "auto-proximity") {
+        feedbackText.innerText = `Auto presence tracking active (${devices[index].proximityThreshold || 65} ms)`;
+      }
+
+      else if (mode === "voice-custom") {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          feedbackText.innerText = "Speech Recognition not supported in this browser.";
+          return;
+        }
+
+        voiceRecognizer = new SpeechRec();
+        voiceRecognizer.continuous = true;
+        voiceRecognizer.interimResults = false;
+        voiceRecognizer.lang = 'en-IN';
+
+        const updateStatusText = () => {
+          const onWord = devices[index].voiceOn || "light on";
+          const offWord = devices[index].voiceOff || "light off";
+          feedbackText.innerHTML = `Listening for: "<b>${onWord}</b>" or "<b>${offWord}</b>"`;
+        };
+        updateStatusText();
+
+        voiceRecognizer.onresult = (evt) => {
+          const heard = evt.results[evt.results.length - 1][0].transcript.toLowerCase().trim();
+          feedbackText.innerHTML = `Heard: "${heard}"`;
+
+          const targetOn = (devices[index].voiceOn || "light on").toLowerCase();
+          const targetOff = (devices[index].voiceOff || "light off").toLowerCase();
+
+          if (heard.includes(targetOn)) {
+            const chk = document.getElementById(`toggle-input-${index}`);
+            if (chk) { chk.checked = true; handleToggleClick(index, chk); }
+          } else if (heard.includes(targetOff)) {
+            const chk = document.getElementById(`toggle-input-${index}`);
+            if (chk) { chk.checked = false; handleToggleClick(index, chk); }
+          }
+        };
+
+        voiceRecognizer.onend = () => {
+          if (devices[index].mode === "voice-custom") {
+            try { voiceRecognizer.start(); } catch(e) {}
+          }
+        };
+        try { voiceRecognizer.start(); } catch(e) {}
+      }
+
+      else if (mode === "trained-clap") {
+        const profile = devices[index].clapProfile;
+        const cadence = devices[index].clapCadence || "single";
+
+        if (!profile) {
+          feedbackText.innerText = "Please record 5 personal claps above to train.";
+          return;
+        }
+
+        await initAudio();
+        feedbackText.innerText = `Listening for your ${cadence === 'double' ? 'Double Clap (👏 .. 👏)' : 'Single Clap (👏)'}...`;
+
+        const timeData = new Uint8Array(analyser.fftSize);
+        const freqData = new Uint8Array(analyser.frequencyBinCount);
+        let armed = true;
+        let lastTrigger = 0;
+        let firstClapTime = 0;
+        let isWaitingForSecond = false;
+
+        function matchLoop() {
+          analyser.getByteTimeDomainData(timeData);
+          analyser.getByteFrequencyData(freqData);
+
+          const fp = extractFingerprint(freqData, timeData);
+          const matchScore = (fp.peak > 14 && fp.crest > 2.5) ? computeCosineSimilarity(fp.bands, profile) : 0;
+          const matchPct = Math.round(matchScore * 100);
+
+          if (meterBar) {
+            meterBar.style.width = `${Math.min(100, Math.round((fp.peak / 45) * 100))}%`;
+            meterBar.style.background = matchScore > 0.65 ? '#10b981' : '#34d399';
+          }
+
+          const now = Date.now();
+          const isPersonalClap = matchScore > 0.72 && fp.crest > 2.8;
+
+          if (isPersonalClap && armed) {
+            if (cadence === "single") {
+              if (now - lastTrigger > 1200) {
+                armed = false;
+                lastTrigger = now;
+                const chk = document.getElementById(`toggle-input-${index}`);
+                if (chk) { chk.checked = !devices[index].state; handleToggleClick(index, chk); }
+                feedbackText.innerText = `✓ Single Clap Confirmed (${matchPct}%)`;
+                setTimeout(() => { armed = true; }, 1000);
+              }
+            } else {
+              armed = false;
+              if (!isWaitingForSecond) {
+                isWaitingForSecond = true;
+                firstClapTime = now;
+                feedbackText.innerText = "1st Clap heard! Clap again quickly...";
+                setTimeout(() => { armed = true; }, 150);
+              } else {
+                const delta = now - firstClapTime;
+                if (delta >= 150 && delta <= 800) {
+                  const chk = document.getElementById(`toggle-input-${index}`);
+                  if (chk) { chk.checked = !devices[index].state; handleToggleClick(index, chk); }
+                  feedbackText.innerText = `✓ Double Clap Confirmed (${matchPct}%)`;
+                  isWaitingForSecond = false;
+                  setTimeout(() => { armed = true; }, 1100);
+                }
+              }
+            }
+          }
+
+          if (isWaitingForSecond && (now - firstClapTime > 800)) {
+            isWaitingForSecond = false;
+            armed = true;
+          }
+
+          if (!armed && fp.peak < 8 && !isWaitingForSecond && (now - lastTrigger > 800)) {
+            armed = true;
+          }
+
+          animFrame = requestAnimationFrame(matchLoop);
+        }
+        matchLoop();
+      }
+
+      else if (mode === "shake") {
+        feedbackText.innerText = "Shake phone vigorously to toggle.";
+        let lastShake = 0;
+        window.ondevicemotion = (e) => {
+          const acc = e.accelerationIncludingGravity;
+          if (!acc) return;
+          const force = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z) - 9.81;
+          if (force > 11.0 && Date.now() - lastShake > 1500) {
+            lastShake = Date.now();
+            const chk = document.getElementById(`toggle-input-${index}`);
+            if (chk) { chk.checked = !devices[index].state; handleToggleClick(index, chk); }
+          }
+        };
+      }
+
+      else if (mode === "wrist") {
+        feedbackText.innerText = "Flick phone wrist laterally to toggle.";
+        let lastFlick = 0;
+        window.ondevicemotion = (e) => {
+          const acc = e.acceleration;
+          if (!acc) return;
+          const lateral = Math.sqrt(acc.x * acc.x + acc.y * acc.y);
+          if (lateral > 14.0 && Date.now() - lastFlick > 1200) {
+            lastFlick = Date.now();
+            const chk = document.getElementById(`toggle-input-${index}`);
+            if (chk) { chk.checked = !devices[index].state; handleToggleClick(index, chk); }
+          }
+        };
+      }
+
+      else if (mode === "flicker") {
+        feedbackText.innerText = "Auto-strobing relay every 500ms...";
+        let st = false;
+        diyIntervals[index] = setInterval(() => {
+          st = !st;
+          const chk = document.getElementById(`toggle-input-${index}`);
+          if (chk) { chk.checked = st; handleToggleClick(index, chk); }
+        }, 500);
+      }
     }
 
     function deleteDevice(index) {
@@ -905,9 +1346,15 @@
       const dev = devices[index];
       const expiry = Date.now() + (10 * 60 * 1000);
       const shareUrl = `${window.location.origin}${window.location.pathname}?add=${encodeURIComponent(dev.name)}&ip=${encodeURIComponent(dev.ip)}&exp=${expiry}`;
-      navigator.clipboard.writeText(shareUrl).then(() => alert("Share link copied (10 min expiry)!"));
+      
+      if (navigator.share) {
+        navigator.share({ title: `NARI Switch: ${dev.name}`, url: shareUrl }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(shareUrl).then(() => alert("10-Minute Share link copied!"));
+      }
     }
 
+    checkUrlPairing();
     render();
     pollAllDevices();
   </script>
