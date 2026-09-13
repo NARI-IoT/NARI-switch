@@ -118,7 +118,6 @@
 
     .sync-status { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 12px; text-align: right; width: 100%; max-width: 440px; }
 
-    /* Compact Fixed 2-Column Grid */
     .container { 
       width: 100%; 
       max-width: 440px; 
@@ -127,7 +126,6 @@
       gap: 12px; 
     }
 
-    /* Fixed Aspect Ratio Wrapper - NEVER SPANS 2 COLUMNS */
     .card-wrapper {
       display: flex;
       flex-direction: column;
@@ -135,7 +133,6 @@
       position: relative;
     }
 
-    /* Square Smart Card */
     .card { 
       background: var(--card-bg); 
       background-size: cover;
@@ -170,7 +167,6 @@
     }
     .card > * { position: relative; z-index: 2; transition: opacity 0.45s var(--ease-120fps); }
 
-    /* Idle Inactive State */
     .card.idle-fade::before { background: rgba(8, 16, 12, 0.12); }
     .card.idle-fade .fading-label { opacity: 0; pointer-events: none; }
     .card.idle-fade .slider {
@@ -204,7 +200,6 @@
 
     .top-right-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; position: relative; }
 
-    /* Pill Slider */
     .switch-wrap { position: relative; display: inline-block; width: 44px; height: 24px; }
     .switch-wrap input { opacity: 0; width: 0; height: 0; }
     .slider {
@@ -319,7 +314,7 @@
       width: 100%;
     }
     .card-dropdown-drawer.open {
-      max-height: 156px; /* Exactly matches smart card square height */
+      max-height: 156px;
       height: 156px;
       opacity: 1;
       border-color: var(--card-border);
@@ -342,6 +337,31 @@
     }
     .mode-subbox label { font-size: 0.68rem; color: var(--accent); display: flex; justify-content: space-between; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
+
+    /* DIY Pattern Trigger Pad */
+    .btn-diy-pad {
+      background: #1e293b;
+      border: 2px dashed var(--accent);
+      color: white;
+      padding: 9px;
+      border-radius: 10px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s ease, transform 0.1s ease;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .btn-diy-pad:active, .btn-diy-pad.pressing {
+      background: var(--success);
+      transform: scale(0.96);
+      border-color: #fff;
+    }
+    .btn-diy-pad.recording {
+      border-color: #ef4444;
+      animation: pulse 1s infinite alternate;
+    }
 
     /* Modals */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none; justify-content: center; align-items: center; padding: 16px; z-index: 100; backdrop-filter: blur(4px); }
@@ -385,7 +405,6 @@
       text-decoration: none; 
     }
 
-    /* Compass Matrix for 8 Directions */
     .compass-matrix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 2px; }
     .matrix-node {
       background: rgba(255,255,255,0.04);
@@ -564,11 +583,24 @@
     let analyser = null;
     let animFrame = null;
     let voiceRecognizer = null;
-    let diyIntervals = {};
     let isTrainingClap = false;
     let clapTrainingBuffer = [];
 
-    // 8-Directional 3D Tilt Settings State
+    // Strobe & Custom DIY Rhythm Engines
+    let strobeTimers = {};
+    let diyPlayTimers = {};
+    let diyRecordState = {
+      isRecording: false,
+      startTime: 0,
+      lastActionTime: 0,
+      pattern: [],
+      currentLightState: false,
+      silenceTimeout: null
+    };
+
+    // Stored DIY Patterns in browser storage
+    let savedDiyPatterns = JSON.parse(localStorage.getItem("nari_diy_patterns") || "[]");
+
     let tiltConfig = JSON.parse(localStorage.getItem("nari_tilt_config") || JSON.stringify({
       threshold: 16,
       actionType: "toggleOnOff",
@@ -654,12 +686,14 @@
     function saveState() {
       localStorage.setItem("nari_devices", JSON.stringify(devices));
       localStorage.setItem("nari_tilt_config", JSON.stringify(tiltConfig));
+      localStorage.setItem("nari_diy_patterns", JSON.stringify(savedDiyPatterns));
       if (currentUser && db) {
         db.collection("users").doc(currentUser.uid).set({
           email: currentUser.email,
           updatedAt: Date.now(),
           devices: devices,
-          tiltConfig: tiltConfig
+          tiltConfig: tiltConfig,
+          diyPatterns: savedDiyPatterns
         }).catch(() => {});
       }
     }
@@ -814,6 +848,8 @@
                   mode: "none",
                   voiceOn: "light on",
                   voiceOff: "light off",
+                  strobeSpeed: 500,
+                  diySubMode: "strobe",
                   clapProfile: null,
                   clapCadence: "single",
                   bootState: "LAST",
@@ -863,6 +899,8 @@
         const hasBg = !!dev.bgPhoto;
         const isOpen = openDrawerIndex === index;
         const currentMode = dev.mode || "none";
+        const strobeSpeed = dev.strobeSpeed || 500;
+        const diySubMode = dev.diySubMode || "strobe";
 
         const cardWrapper = document.createElement("div");
         cardWrapper.className = "card-wrapper";
@@ -880,7 +918,7 @@
 
         card.innerHTML = `
           <div class="card-top">
-            <div class="icon-box ${dev.state && isOnline ? 'active' : ''}" onclick="openBulbModal(${index}, event)" title="Appliance Settings">
+            <div class="icon-box ${dev.state && isOnline ? 'active' : ''}" id="icon-box-${index}" onclick="openBulbModal(${index}, event)" title="Appliance Settings">
               <i class="fa-solid ${!isOnline ? 'fa-plug-circle-xmark' : (dev.state ? 'fa-lightbulb' : 'fa-power-off')}"></i>
             </div>
 
@@ -934,13 +972,53 @@
             <label style="color:var(--accent); font-weight:700;"><i class="fa-solid fa-brain"></i> Mode:</label>
             <select onchange="handleModeChange(${index}, this.value)">
               <option value="none" ${currentMode === 'none' ? 'selected' : ''}>Standard Manual</option>
+              <option value="flicker" ${currentMode === 'flicker' ? 'selected' : ''}>Auto-Strobe / Custom DIY</option>
               <option value="tilt" ${currentMode === 'tilt' ? 'selected' : ''}>3D Tilt (8-Way Room)</option>
               <option value="auto-proximity" ${currentMode === 'auto-proximity' ? 'selected' : ''}>Auto Proximity</option>
               <option value="voice-custom" ${currentMode === 'voice-custom' ? 'selected' : ''}>Voice (en-IN)</option>
               <option value="trained-clap" ${currentMode === 'trained-clap' ? 'selected' : ''}>Fingerprint Clap</option>
               <option value="shake" ${currentMode === 'shake' ? 'selected' : ''}>Shake Phone</option>
-              <option value="flicker" ${currentMode === 'flicker' ? 'selected' : ''}>Auto-Strobe</option>
             </select>
+          </div>
+
+          <!-- Auto-Strobe / Custom DIY Pattern Subbox -->
+          <div class="mode-subbox" id="flicker-box-${index}" style="display: ${currentMode === 'flicker' ? 'flex' : 'none'};">
+            <div class="form-group">
+              <label>Strobe Function:</label>
+              <select onchange="updateDiySubMode(${index}, this.value)">
+                <option value="strobe" ${diySubMode === 'strobe' ? 'selected' : ''}>Speed Controlled Auto-Strobe</option>
+                <option value="diy-record" ${diySubMode === 'diy-record' ? 'selected' : ''}>DIY Custom Pattern (Touch Record)</option>
+                <option value="diy-play" ${diySubMode === 'diy-play' ? 'selected' : ''}>Play Saved DIY Pattern</option>
+              </select>
+            </div>
+
+            <!-- Strobe Speed Slider -->
+            <div id="strobe-speed-row-${index}" style="display: ${diySubMode === 'strobe' ? 'flex' : 'none'}; flex-direction:column; gap:4px;">
+              <label><span>Cycle Speed</span><b id="strobe-speed-label-${index}">${strobeSpeed} ms</b></label>
+              <input type="range" min="100" max="2000" step="50" value="${strobeSpeed}" oninput="updateStrobeSpeed(${index}, this.value)">
+            </div>
+
+            <!-- DIY Recording Button (Hold ON / Release OFF) -->
+            <div id="diy-record-row-${index}" style="display: ${diySubMode === 'diy-record' ? 'flex' : 'none'}; flex-direction:column; gap:6px;">
+              <div class="btn-diy-pad" id="btn-diy-pad-${index}" 
+                onmousedown="diyPadDown(${index})" onmouseup="diyPadUp(${index})"
+                ontouchstart="diyPadDown(${index}, event)" ontouchend="diyPadUp(${index}, event)">
+                <i class="fa-solid fa-hand-pointer"></i> Press & Hold (Max 20s)
+              </div>
+              <span id="diy-record-status-${index}" style="font-size:0.66rem; color:var(--text-muted); text-align:center;">
+                Hold pad = Light ON | Release = Light OFF
+              </span>
+            </div>
+
+            <!-- DIY Playback Selector -->
+            <div id="diy-play-row-${index}" style="display: ${diySubMode === 'diy-play' ? 'flex' : 'none'}; flex-direction:column; gap:6px;">
+              <select id="select-pattern-${index}" onchange="selectPatternToPlay(${index}, this.value)">
+                ${renderPatternOptions()}
+              </select>
+              <button class="btn-primary" style="padding:6px;" onclick="togglePlayPattern(${index})">
+                <i class="fa-solid fa-play"></i> <span id="btn-play-lbl-${index}">Loop Pattern</span>
+              </button>
+            </div>
           </div>
 
           <!-- 3D Tilt Settings Subbox -->
@@ -999,6 +1077,175 @@
       });
 
       resetIdleTimer();
+    }
+
+    // --- AUTO-STROBE & CUSTOM DIY RHYTHM CONTROLLERS ---
+    function updateDiySubMode(index, mode) {
+      devices[index].diySubMode = mode;
+      saveState();
+
+      if (strobeTimers[index]) { clearInterval(strobeTimers[index]); delete strobeTimers[index]; }
+      if (diyPlayTimers[index]) { clearTimeout(diyPlayTimers[index]); delete diyPlayTimers[index]; }
+
+      const speedRow = document.getElementById(`strobe-speed-row-${index}`);
+      const recordRow = document.getElementById(`diy-record-row-${index}`);
+      const playRow = document.getElementById(`diy-play-row-${index}`);
+
+      if (speedRow) speedRow.style.display = mode === 'strobe' ? 'flex' : 'none';
+      if (recordRow) recordRow.style.display = mode === 'diy-record' ? 'flex' : 'none';
+      if (playRow) playRow.style.display = mode === 'diy-play' ? 'flex' : 'none';
+
+      if (mode === 'strobe') {
+        startStrobeLoop(index);
+      }
+    }
+
+    function updateStrobeSpeed(index, speedVal) {
+      const speed = parseInt(speedVal, 10);
+      devices[index].strobeSpeed = speed;
+      const lbl = document.getElementById(`strobe-speed-label-${index}`);
+      if (lbl) lbl.innerText = `${speed} ms`;
+      saveState();
+
+      if (devices[index].mode === 'flicker' && (devices[index].diySubMode || 'strobe') === 'strobe') {
+        startStrobeLoop(index);
+      }
+    }
+
+    function startStrobeLoop(index) {
+      if (strobeTimers[index]) clearInterval(strobeTimers[index]);
+      const speed = devices[index].strobeSpeed || 500;
+      let state = false;
+      strobeTimers[index] = setInterval(() => {
+        state = !state;
+        quietSendCommand(index, state);
+      }, speed);
+    }
+
+    // --- DIY PATTERN RECORDING (Touch/Hold = ON, Release = OFF) ---
+    function diyPadDown(index, e) {
+      if (e) e.preventDefault();
+      const pad = document.getElementById(`btn-diy-pad-${index}`);
+      const statusLbl = document.getElementById(`diy-record-status-${index}`);
+      if (pad) {
+        pad.classList.add("pressing");
+        pad.classList.add("recording");
+      }
+
+      const now = Date.now();
+      clearTimeout(diyRecordState.silenceTimeout);
+
+      if (!diyRecordState.isRecording) {
+        diyRecordState.isRecording = true;
+        diyRecordState.startTime = now;
+        diyRecordState.lastActionTime = now;
+        diyRecordState.pattern = [];
+        if (statusLbl) statusLbl.innerText = "● Recording... (Max 20s)";
+
+        // 20s safety limit
+        setTimeout(() => {
+          if (diyRecordState.isRecording) finishDiyRecording(index);
+        }, 20000);
+      } else {
+        const offDuration = now - diyRecordState.lastActionTime;
+        diyRecordState.pattern.push({ state: 0, duration: offDuration });
+        diyRecordState.lastActionTime = now;
+      }
+
+      quietSendCommand(index, true);
+    }
+
+    function diyPadUp(index, e) {
+      if (e) e.preventDefault();
+      const pad = document.getElementById(`btn-diy-pad-${index}`);
+      const statusLbl = document.getElementById(`diy-record-status-${index}`);
+      if (pad) pad.classList.remove("pressing");
+
+      if (!diyRecordState.isRecording) return;
+
+      const now = Date.now();
+      const onDuration = now - diyRecordState.lastActionTime;
+      diyRecordState.pattern.push({ state: 1, duration: onDuration });
+      diyRecordState.lastActionTime = now;
+
+      quietSendCommand(index, false);
+
+      if (statusLbl) statusLbl.innerText = "Listening... Release for 3s to auto-save";
+
+      // 3 seconds of silence saves the pattern automatically
+      diyRecordState.silenceTimeout = setTimeout(() => {
+        finishDiyRecording(index);
+      }, 3000);
+    }
+
+    function finishDiyRecording(index) {
+      if (!diyRecordState.isRecording) return;
+      diyRecordState.isRecording = false;
+      clearTimeout(diyRecordState.silenceTimeout);
+
+      const pad = document.getElementById(`btn-diy-pad-${index}`);
+      const statusLbl = document.getElementById(`diy-record-status-${index}`);
+      if (pad) {
+        pad.classList.remove("recording");
+        pad.classList.remove("pressing");
+      }
+
+      if (diyRecordState.pattern.length > 0) {
+        const patternName = `Pattern ${savedDiyPatterns.length + 1} (${Math.round((Date.now() - diyRecordState.startTime) / 1000)}s)`;
+        savedDiyPatterns.push({
+          id: Date.now(),
+          name: patternName,
+          events: diyRecordState.pattern
+        });
+        saveState();
+
+        if (statusLbl) statusLbl.innerText = `✓ Saved: ${patternName}`;
+
+        const sel = document.getElementById(`select-pattern-${index}`);
+        if (sel) sel.innerHTML = renderPatternOptions();
+      } else {
+        if (statusLbl) statusLbl.innerText = "Nothing recorded.";
+      }
+    }
+
+    function renderPatternOptions() {
+      if (savedDiyPatterns.length === 0) {
+        return `<option value="">-- No Patterns Saved --</option>`;
+      }
+      return savedDiyPatterns.map((p, i) => `<option value="${i}">${p.name}</option>`).join("");
+    }
+
+    // --- DIY PATTERN LOOP PLAYBACK ---
+    function togglePlayPattern(index) {
+      const lbl = document.getElementById(`btn-play-lbl-${index}`);
+      if (diyPlayTimers[index]) {
+        clearTimeout(diyPlayTimers[index]);
+        delete diyPlayTimers[index];
+        quietSendCommand(index, false);
+        if (lbl) lbl.innerText = "Loop Pattern";
+        return;
+      }
+
+      const sel = document.getElementById(`select-pattern-${index}`);
+      const patternIdx = sel ? parseInt(sel.value, 10) : 0;
+      if (isNaN(patternIdx) || !savedDiyPatterns[patternIdx]) {
+        alert("Please record a pattern first.");
+        return;
+      }
+
+      if (lbl) lbl.innerText = "Stop Playing";
+      playPatternLoop(index, savedDiyPatterns[patternIdx].events, 0);
+    }
+
+    function playPatternLoop(index, events, step) {
+      if (step >= events.length) step = 0; // Loop seamlessly
+
+      const current = events[step];
+      quietSendCommand(index, current.state === 1);
+
+      diyPlayTimers[index] = setTimeout(() => {
+        playPatternLoop(index, events, step + 1);
+      }, current.duration);
     }
 
     function renderDeviceSelector(dir) {
@@ -1132,7 +1379,10 @@
       }
       window.ondevicemotion = null;
       window.removeEventListener("deviceorientation", handleDeviceTilt, true);
-      if (diyIntervals[index]) clearInterval(diyIntervals[index]);
+      
+      // Clear timers
+      if (strobeTimers[index]) { clearInterval(strobeTimers[index]); delete strobeTimers[index]; }
+      if (diyPlayTimers[index]) { clearTimeout(diyPlayTimers[index]); delete diyPlayTimers[index]; }
 
       const feedback = document.getElementById(`feedback-${index}`);
       const feedbackText = document.getElementById(`feedback-text-${index}`);
@@ -1140,11 +1390,13 @@
       const proxBox = document.getElementById(`prox-box-${index}`);
       const voiceBox = document.getElementById(`voice-box-${index}`);
       const clapBox = document.getElementById(`clap-box-${index}`);
+      const flickerBox = document.getElementById(`flicker-box-${index}`);
 
       if (tiltBox) tiltBox.style.display = mode === 'tilt' ? 'flex' : 'none';
       if (proxBox) proxBox.style.display = mode === 'auto-proximity' ? 'flex' : 'none';
       if (voiceBox) voiceBox.style.display = mode === 'voice-custom' ? 'flex' : 'none';
       if (clapBox) clapBox.style.display = mode === 'trained-clap' ? 'flex' : 'none';
+      if (flickerBox) flickerBox.style.display = mode === 'flicker' ? 'flex' : 'none';
 
       if (mode === "none") {
         if (feedback) feedback.style.display = "none";
@@ -1152,7 +1404,12 @@
       }
       if (feedback) feedback.style.display = "flex";
 
-      if (mode === "tilt") {
+      if (mode === "flicker") {
+        feedbackText.innerText = "Auto-Strobe / DIY Mode Ready";
+        updateDiySubMode(index, devices[index].diySubMode || 'strobe');
+      }
+
+      else if (mode === "tilt") {
         feedbackText.innerText = "Tilt in 8 directions to control lights.";
         initTiltEngine();
       }
@@ -1249,15 +1506,6 @@
           }
         };
       }
-
-      else if (mode === "flicker") {
-        feedbackText.innerText = "Strobing relay every 500ms...";
-        let st = false;
-        diyIntervals[index] = setInterval(() => {
-          st = !st;
-          sendCommand(index, st);
-        }, 500);
-      }
     }
 
     async function handleToggleClick(index, checkboxElem) {
@@ -1331,6 +1579,31 @@
         dev._isVerifying = false;
         render();
       }
+    }
+
+    // Quiet command for background strobe / DIY patterns (DOES NOT RE-RENDER FULL UI)
+    async function quietSendCommand(index, targetState) {
+      const dev = devices[index];
+      if (!dev || dev.isOnline === false) return;
+
+      dev.state = targetState;
+
+      // Update toggle slider and bulb icon directly in DOM
+      const chk = document.getElementById(`toggle-input-${index}`);
+      if (chk) chk.checked = targetState;
+
+      const icon = document.getElementById(`icon-box-${index}`);
+      if (icon) {
+        if (targetState) icon.classList.add("active");
+        else icon.classList.remove("active");
+      }
+
+      try {
+        await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
+          method: 'GET',
+          mode: 'cors'
+        });
+      } catch (e) {}
     }
 
     function triggerEditOption(index, e) {
@@ -1457,7 +1730,7 @@
 
       btn.classList.add("listening");
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Clap 1 of 5...`;
-      feedbackText.innerText = "Listening for clap 1...";
+      feedbackText.innerText = "Listening for personal clap 1...";
 
       const timeData = new Uint8Array(analyser.fftSize);
       const freqData = new Uint8Array(analyser.frequencyBinCount);
