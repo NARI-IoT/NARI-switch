@@ -118,6 +118,7 @@
 
     .sync-status { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 12px; text-align: right; width: 100%; max-width: 440px; }
 
+    /* Compact 2-Column Grid */
     .container { 
       width: 100%; 
       max-width: 440px; 
@@ -133,6 +134,7 @@
       position: relative;
     }
 
+    /* Fixed Square Smart Card */
     .card { 
       background: var(--card-bg); 
       background-size: cover;
@@ -167,6 +169,7 @@
     }
     .card > * { position: relative; z-index: 2; transition: opacity 0.45s var(--ease-120fps); }
 
+    /* Idle Dimming */
     .card.idle-fade::before { background: rgba(8, 16, 12, 0.12); }
     .card.idle-fade .fading-label { opacity: 0; pointer-events: none; }
     .card.idle-fade .slider {
@@ -296,7 +299,7 @@
     .drawer-trigger:hover { transform: scale(1.04); }
     .wifi-badge { font-size: 0.68rem; color: var(--accent); display: flex; align-items: center; gap: 3px; }
 
-    /* EQUAL-SIZE SQUARE AI MODES DROPDOWN DRAWER UNDER CARD */
+    /* Matching Square AI Drawer Directly Under Card */
     .card-dropdown-drawer {
       max-height: 0;
       opacity: 0;
@@ -338,7 +341,7 @@
     .mode-subbox label { font-size: 0.68rem; color: var(--accent); display: flex; justify-content: space-between; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
 
-    /* DIY Pattern Trigger Pad */
+    /* DIY Touch Rhythm Pad */
     .btn-diy-pad {
       background: #1e293b;
       border: 2px dashed var(--accent);
@@ -677,7 +680,13 @@
       try {
         const doc = await db.collection("users").doc(currentUser.uid).get();
         if (doc.exists && doc.data().devices) {
-          devices = doc.data().devices;
+          const cloudDevices = doc.data().devices;
+          devices.forEach(localDev => {
+            if (!cloudDevices.some(cd => cd.ip === localDev.ip)) {
+              cloudDevices.push(localDev);
+            }
+          });
+          devices = cloudDevices;
           localStorage.setItem("nari_devices", JSON.stringify(devices));
         } else if (devices.length > 0) saveState();
       } catch (e) { console.error("Cloud fetch failed:", e); }
@@ -698,6 +707,44 @@
       }
     }
 
+    function checkUrlPairing() {
+      const params = new URLSearchParams(window.location.search);
+      const addName = params.get('add');
+      const addIp = params.get('ip');
+      const expiresAt = parseInt(params.get('exp'), 10);
+
+      if (addName && addIp) {
+        const now = Date.now();
+        if (!expiresAt || isNaN(expiresAt) || now > expiresAt) {
+          alert("Pairing link expired (10-minute security limit).");
+          window.history.replaceState({}, document.title, window.location.pathname);
+          return;
+        }
+
+        if (!devices.some(d => d.ip === addIp)) {
+          devices.push({
+            name: decodeURIComponent(addName),
+            ip: decodeURIComponent(addIp),
+            state: false,
+            mode: "none",
+            voiceOn: "light on",
+            voiceOff: "light off",
+            strobeSpeed: 500,
+            diySubMode: "strobe",
+            clapProfile: null,
+            clapCadence: "single",
+            bootState: "LAST",
+            bgPhoto: null,
+            proximityThreshold: 65,
+            isOnline: true
+          });
+          saveState();
+          alert(`Added "${decodeURIComponent(addName)}"!`);
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+
     function toggleCardDrawer(index, e) {
       if (e) e.stopPropagation();
       openDrawerIndex = openDrawerIndex === index ? null : index;
@@ -710,12 +757,13 @@
     async function checkDeviceHealth(dev) {
       const controller = new AbortController();
       const startT = performance.now();
-      const timeoutId = setTimeout(() => controller.abort(), 1400);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       try {
-        const res = await fetch(`http://${dev.ip}/ping?k=${NARI_AUTH_TOKEN}`, { 
+        const res = await fetch(`http://${dev.ip}/ping?k=${NARI_AUTH_TOKEN}&_cb=${Date.now()}`, { 
           method: 'GET',
           mode: 'cors',
+          cache: 'no-store',
           signal: controller.signal 
         });
         clearTimeout(timeoutId);
@@ -962,7 +1010,7 @@
           </div>
         `;
 
-        // SQUARE-SIZED EMBEDDED DRAWER UNDER CARD
+        // Matching Square AI Modes Drawer Directly Under This Card
         const drawer = document.createElement("div");
         drawer.className = `card-dropdown-drawer ${isOpen ? 'open' : ''}`;
         drawer.id = `drawer-${index}`;
@@ -1012,7 +1060,7 @@
 
             <!-- DIY Playback Selector -->
             <div id="diy-play-row-${index}" style="display: ${diySubMode === 'diy-play' ? 'flex' : 'none'}; flex-direction:column; gap:6px;">
-              <select id="select-pattern-${index}" onchange="selectPatternToPlay(${index}, this.value)">
+              <select id="select-pattern-${index}">
                 ${renderPatternOptions()}
               </select>
               <button class="btn-primary" style="padding:6px;" onclick="togglePlayPattern(${index})">
@@ -1079,7 +1127,7 @@
       resetIdleTimer();
     }
 
-    // --- AUTO-STROBE & CUSTOM DIY RHYTHM CONTROLLERS ---
+    // --- STROBE & DIY PATTERN CONTROLLERS ---
     function updateDiySubMode(index, mode) {
       devices[index].diySubMode = mode;
       saveState();
@@ -1122,7 +1170,6 @@
       }, speed);
     }
 
-    // --- DIY PATTERN RECORDING (Touch/Hold = ON, Release = OFF) ---
     function diyPadDown(index, e) {
       if (e) e.preventDefault();
       const pad = document.getElementById(`btn-diy-pad-${index}`);
@@ -1142,7 +1189,6 @@
         diyRecordState.pattern = [];
         if (statusLbl) statusLbl.innerText = "● Recording... (Max 20s)";
 
-        // 20s safety limit
         setTimeout(() => {
           if (diyRecordState.isRecording) finishDiyRecording(index);
         }, 20000);
@@ -1170,9 +1216,8 @@
 
       quietSendCommand(index, false);
 
-      if (statusLbl) statusLbl.innerText = "Listening... Release for 3s to auto-save";
+      if (statusLbl) statusLbl.innerText = "Release for 3s to auto-save...";
 
-      // 3 seconds of silence saves the pattern automatically
       diyRecordState.silenceTimeout = setTimeout(() => {
         finishDiyRecording(index);
       }, 3000);
@@ -1215,7 +1260,6 @@
       return savedDiyPatterns.map((p, i) => `<option value="${i}">${p.name}</option>`).join("");
     }
 
-    // --- DIY PATTERN LOOP PLAYBACK ---
     function togglePlayPattern(index) {
       const lbl = document.getElementById(`btn-play-lbl-${index}`);
       if (diyPlayTimers[index]) {
@@ -1238,7 +1282,7 @@
     }
 
     function playPatternLoop(index, events, step) {
-      if (step >= events.length) step = 0; // Loop seamlessly
+      if (step >= events.length) step = 0;
 
       const current = events[step];
       quietSendCommand(index, current.state === 1);
@@ -1380,7 +1424,6 @@
       window.ondevicemotion = null;
       window.removeEventListener("deviceorientation", handleDeviceTilt, true);
       
-      // Clear timers
       if (strobeTimers[index]) { clearInterval(strobeTimers[index]); delete strobeTimers[index]; }
       if (diyPlayTimers[index]) { clearTimeout(diyPlayTimers[index]); delete diyPlayTimers[index]; }
 
@@ -1581,14 +1624,13 @@
       }
     }
 
-    // Quiet command for background strobe / DIY patterns (DOES NOT RE-RENDER FULL UI)
+    // Quiet toggle for background strobe & pattern playback (Prevents UI re-renders and auto-closing)
     async function quietSendCommand(index, targetState) {
       const dev = devices[index];
       if (!dev || dev.isOnline === false) return;
 
       dev.state = targetState;
 
-      // Update toggle slider and bulb icon directly in DOM
       const chk = document.getElementById(`toggle-input-${index}`);
       if (chk) chk.checked = targetState;
 
@@ -1799,6 +1841,8 @@
       }
     }
 
+    // Initialize pairing parser and startup loops
+    checkUrlPairing();
     render();
     pollAllDevices();
   </script>
