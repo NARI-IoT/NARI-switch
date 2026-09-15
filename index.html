@@ -118,7 +118,6 @@
 
     .sync-status { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 12px; text-align: right; width: 100%; max-width: 440px; }
 
-    /* Compact 2-Column Grid */
     .container { 
       width: 100%; 
       max-width: 440px; 
@@ -134,7 +133,7 @@
       position: relative;
     }
 
-    /* Fixed Square Smart Card */
+    /* Square Smart Card */
     .card { 
       background: var(--card-bg); 
       background-size: cover;
@@ -169,7 +168,6 @@
     }
     .card > * { position: relative; z-index: 2; transition: opacity 0.45s var(--ease-120fps); }
 
-    /* Idle Dimming */
     .card.idle-fade::before { background: rgba(8, 16, 12, 0.12); }
     .card.idle-fade .fading-label { opacity: 0; pointer-events: none; }
     .card.idle-fade .slider {
@@ -299,7 +297,7 @@
     .drawer-trigger:hover { transform: scale(1.04); }
     .wifi-badge { font-size: 0.68rem; color: var(--accent); display: flex; align-items: center; gap: 3px; }
 
-    /* Matching Square AI Drawer Directly Under Card */
+    /* Equal Square AI Modes Drawer */
     .card-dropdown-drawer {
       max-height: 0;
       opacity: 0;
@@ -341,7 +339,6 @@
     .mode-subbox label { font-size: 0.68rem; color: var(--accent); display: flex; justify-content: space-between; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
 
-    /* DIY Touch Rhythm Pad */
     .btn-diy-pad {
       background: #1e293b;
       border: 2px dashed var(--accent);
@@ -736,6 +733,7 @@
             bootState: "LAST",
             bgPhoto: null,
             proximityThreshold: 65,
+            wifiRssi: null,
             isOnline: true
           });
           saveState();
@@ -1010,7 +1008,7 @@
           </div>
         `;
 
-        // Matching Square AI Modes Drawer Directly Under This Card
+        // Equal Square AI Modes Drawer
         const drawer = document.createElement("div");
         drawer.className = `card-dropdown-drawer ${isOpen ? 'open' : ''}`;
         drawer.id = `drawer-${index}`;
@@ -1026,6 +1024,7 @@
               <option value="voice-custom" ${currentMode === 'voice-custom' ? 'selected' : ''}>Voice (en-IN)</option>
               <option value="trained-clap" ${currentMode === 'trained-clap' ? 'selected' : ''}>Fingerprint Clap</option>
               <option value="shake" ${currentMode === 'shake' ? 'selected' : ''}>Shake Phone</option>
+              <option value="wrist" ${currentMode === 'wrist' ? 'selected' : ''}>Gesture: Wrist Flick</option>
             </select>
           </div>
 
@@ -1110,7 +1109,20 @@
 
           <!-- Clap Subbox -->
           <div class="mode-subbox" id="clap-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'flex' : 'none'};">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.68rem; font-weight:600;">Hand Profile:</span>
+              <span style="font-size:0.68rem; color:${dev.clapProfile ? '#10b981' : '#f59e0b'};">
+                ${dev.clapProfile ? '✓ Trained' : 'Not Trained'}
+              </span>
+            </div>
             <button class="btn-train-clap" id="btn-train-clap-${index}" onclick="startClapTraining(${index})"><i class="fa-solid fa-hands-clapping"></i> Record 5 Claps</button>
+            <div class="form-group" style="margin-top:2px;">
+              <label>Cadence:</label>
+              <select onchange="updateClapCadence(${index}, this.value)">
+                <option value="single" ${(dev.clapCadence || 'single') === 'single' ? 'selected' : ''}>Single Clap (Instant)</option>
+                <option value="double" ${(dev.clapCadence || 'single') === 'double' ? 'selected' : ''}>Double Clap (Safe)</option>
+              </select>
+            </div>
             <div class="meter-container"><div class="meter-bar" id="meter-bar-${index}"></div></div>
           </div>
 
@@ -1329,6 +1341,11 @@
       saveState();
     }
 
+    function updateClapCadence(index, val) {
+      devices[index].clapCadence = val;
+      saveState();
+    }
+
     // 3D Tilt Calibration & Orientation Engine
     let calibratedPitch = 0;
     let calibratedRoll = 0;
@@ -1495,18 +1512,21 @@
 
       else if (mode === "trained-clap") {
         const profile = devices[index].clapProfile;
+        const cadence = devices[index].clapCadence || "single";
         if (!profile) {
           feedbackText.innerText = "Record 5 claps below.";
           return;
         }
 
         await initAudio();
-        feedbackText.innerText = "Listening for clap...";
+        feedbackText.innerText = `Listening for ${cadence === 'double' ? 'Double' : 'Single'} Clap...`;
 
         const timeData = new Uint8Array(analyser.fftSize);
         const freqData = new Uint8Array(analyser.frequencyBinCount);
         let armed = true;
         let lastTrigger = 0;
+        let firstClapTime = 0;
+        let isWaitingForSecond = false;
 
         function matchLoop() {
           analyser.getByteTimeDomainData(timeData);
@@ -1521,14 +1541,39 @@
           }
 
           const now = Date.now();
-          if (matchScore > 0.72 && fp.crest > 2.8 && armed) {
-            if (now - lastTrigger > 1200) {
+          const isPersonalClap = matchScore > 0.72 && fp.crest > 2.8;
+
+          if (isPersonalClap && armed) {
+            if (cadence === "single") {
+              if (now - lastTrigger > 1200) {
+                armed = false;
+                lastTrigger = now;
+                feedbackText.innerText = `✓ Single Clap (${Math.round(matchScore * 100)}%)`;
+                toggleDevice(index);
+                setTimeout(() => { armed = true; }, 1000);
+              }
+            } else {
               armed = false;
-              lastTrigger = now;
-              feedbackText.innerText = `✓ Clap Confirmed (${Math.round(matchScore * 100)}%)`;
-              toggleDevice(index);
-              setTimeout(() => { armed = true; }, 1000);
+              if (!isWaitingForSecond) {
+                isWaitingForSecond = true;
+                firstClapTime = now;
+                feedbackText.innerText = "1st Clap heard! Clap again...";
+                setTimeout(() => { armed = true; }, 150);
+              } else {
+                const delta = now - firstClapTime;
+                if (delta >= 150 && delta <= 800) {
+                  feedbackText.innerText = `✓ Double Clap (${Math.round(matchScore * 100)}%)`;
+                  toggleDevice(index);
+                  isWaitingForSecond = false;
+                  setTimeout(() => { armed = true; }, 1100);
+                }
+              }
             }
+          }
+
+          if (isWaitingForSecond && (now - firstClapTime > 800)) {
+            isWaitingForSecond = false;
+            armed = true;
           }
 
           animFrame = requestAnimationFrame(matchLoop);
@@ -1545,6 +1590,20 @@
           const force = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z) - 9.81;
           if (force > 11.0 && Date.now() - lastShake > 1500) {
             lastShake = Date.now();
+            toggleDevice(index);
+          }
+        };
+      }
+
+      else if (mode === "wrist") {
+        feedbackText.innerText = "Flick phone wrist laterally to toggle.";
+        let lastFlick = 0;
+        window.ondevicemotion = (e) => {
+          const acc = e.acceleration;
+          if (!acc) return;
+          const lateral = Math.sqrt(acc.x * acc.x + acc.y * acc.y);
+          if (lateral > 14.0 && Date.now() - lastFlick > 1200) {
+            lastFlick = Date.now();
             toggleDevice(index);
           }
         };
@@ -1624,7 +1683,6 @@
       }
     }
 
-    // Quiet toggle for background strobe & pattern playback (Prevents UI re-renders and auto-closing)
     async function quietSendCommand(index, targetState) {
       const dev = devices[index];
       if (!dev || dev.isOnline === false) return;
@@ -1841,7 +1899,7 @@
       }
     }
 
-    // Initialize pairing parser and startup loops
+    // Startup initializers
     checkUrlPairing();
     render();
     pollAllDevices();
