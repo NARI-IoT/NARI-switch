@@ -490,11 +490,11 @@
       <div class="onboarding-steps">
         <div class="onboard-step">
           <div class="onboard-num">1</div>
-          <div>Connect your phone or laptop to <b>NARI-Smart-Switch</b> in Wi-Fi settings.</div>
+          <div>Connect your phone or laptop to <b>NARI-Switch-XXXX</b> in Wi-Fi settings.</div>
         </div>
         <div class="onboard-step">
           <div class="onboard-num">2</div>
-          <div>Choose your home Wi-Fi and enter its password on the popup screen.</div>
+          <div>Enter default password <b>nariSetup2026</b> and select your home Wi-Fi.</div>
         </div>
         <div class="onboard-step">
           <div class="onboard-num">3</div>
@@ -603,7 +603,7 @@
             badge.classList.add("connected");
             badge.innerHTML = `<i class="fa-solid fa-cloud"></i> Cloud: Standby (Backup)`;
           }
-          // Wildcard feedback: nari/<deviceId>/state
+          // Subscribes using wildcard: nari/<hardware_mac_or_ip>/state
           mqttClient.subscribe("nari/+/state", { qos: 0 });
         });
 
@@ -643,7 +643,8 @@
       if (parts.length < 3) return;
       const devIdentifier = parts[1];
 
-      const idx = devices.findIndex(d => (d.ip === devIdentifier || d.id === devIdentifier || d.ip.replace(/\./g, "_") === devIdentifier));
+      // Identify by permanent Hardware MAC ID first, then fallback to IP
+      const idx = devices.findIndex(d => (d.id === devIdentifier || d.ip === devIdentifier || d.ip.replace(/\./g, "_") === devIdentifier));
       if (idx !== -1) {
         const newState = payload === "1" || payload.toLowerCase() === "true" || payload.toLowerCase() === "on";
         devices[idx].state = newState;
@@ -656,7 +657,8 @@
 
     function publishDeviceState(dev, targetState) {
       if (!mqttClient || !isMqttConnected) return false;
-      const targetId = (dev.ip || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
+      // Target the permanent hardware MAC ID
+      const targetId = dev.id || (dev.ip || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
       const topic = `nari/${targetId}/set`;
       const payload = targetState ? "1" : "0";
       mqttClient.publish(topic, payload, { qos: 0 });
@@ -706,7 +708,6 @@
       silenceTimeout: null
     };
 
-    // Stored DIY Patterns in browser storage
     let savedDiyPatterns = JSON.parse(localStorage.getItem("nari_diy_patterns") || "[]");
 
     let tiltConfig = JSON.parse(localStorage.getItem("nari_tilt_config") || JSON.stringify({
@@ -787,7 +788,7 @@
         if (doc.exists && doc.data().devices) {
           const cloudDevices = doc.data().devices;
           devices.forEach(localDev => {
-            if (!cloudDevices.some(cd => cd.ip === localDev.ip)) {
+            if (!cloudDevices.some(cd => (cd.id && cd.id === localDev.id) || cd.ip === localDev.ip)) {
               cloudDevices.push(localDev);
             }
           });
@@ -816,6 +817,7 @@
       const params = new URLSearchParams(window.location.search);
       const addName = params.get('add');
       const addIp = params.get('ip');
+      const addId = params.get('id') || "";
       const expiresAt = parseInt(params.get('exp'), 10);
 
       if (addName && addIp) {
@@ -826,8 +828,9 @@
           return;
         }
 
-        if (!devices.some(d => d.ip === addIp)) {
+        if (!devices.some(d => (addId && d.id === addId) || d.ip === addIp)) {
           devices.push({
+            id: addId,
             name: decodeURIComponent(addName),
             ip: decodeURIComponent(addIp),
             state: false,
@@ -876,16 +879,16 @@
         dev.rtt = Math.round(performance.now() - startT);
 
         if (res.ok) {
-          const txt = await res.text();
-          const rssiVal = parseInt(txt, 10);
-          dev.wifiRssi = isNaN(rssiVal) ? -55 : rssiVal;
+          const data = await res.json();
+          if (data.id && !dev.id) dev.id = data.id;
+          dev.wifiRssi = (data.rssi !== undefined) ? data.rssi : -55;
           return true;
         }
         return false;
       } catch (e) {
         clearTimeout(timeoutId);
         dev.wifiRssi = null;
-        // Fall back to active status if Cloud broker is connected
+        // If local ping fails, switch remains operational remotely if Cloud broker is connected
         return isMqttConnected;
       }
     }
@@ -940,7 +943,7 @@
 
     function openWifiNotice() {
       setTimeout(() => {
-        alert("Connect your device to 'NARI-Smart-Switch' in your Wi-Fi settings.");
+        alert("Connect your device to 'NARI-Switch-XXXX' in your Wi-Fi settings (Password: nariSetup2026).");
       }, 300);
     }
 
@@ -955,9 +958,8 @@
         });
         clearTimeout(timeoutId);
         if (res.ok) {
-          const txt = await res.text();
-          const rssiVal = parseInt(txt, 10);
-          return { found: true, ip: ip, rssi: isNaN(rssiVal) ? -55 : rssiVal };
+          const data = await res.json();
+          return { found: true, ip: ip, id: data.id || "", rssi: data.rssi || -55 };
         }
         return { found: false };
       } catch (e) {
@@ -998,9 +1000,10 @@
           const results = await Promise.all(batch.map(ip => probeIp(ip)));
           for (const res of results) {
             if (res.found) {
-              const exists = devices.some(d => d.ip === res.ip);
+              const exists = devices.some(d => (res.id && d.id === res.id) || d.ip === res.ip);
               if (!exists) {
                 devices.push({
+                  id: res.id,
                   name: `Switch ${devices.length + 1}`,
                   ip: res.ip,
                   state: false,
@@ -1121,7 +1124,6 @@
           </div>
         `;
 
-        // Equal Square AI Modes Drawer
         const drawer = document.createElement("div");
         drawer.className = `card-dropdown-drawer ${isOpen ? 'open' : ''}`;
         drawer.id = `drawer-${index}`;
@@ -1141,7 +1143,6 @@
             </select>
           </div>
 
-          <!-- Auto-Strobe / Custom DIY Pattern Subbox -->
           <div class="mode-subbox" id="flicker-box-${index}" style="display: ${currentMode === 'flicker' ? 'flex' : 'none'};">
             <div class="form-group">
               <label>Strobe Function:</label>
@@ -1152,13 +1153,11 @@
               </select>
             </div>
 
-            <!-- Strobe Speed Slider -->
             <div id="strobe-speed-row-${index}" style="display: ${diySubMode === 'strobe' ? 'flex' : 'none'}; flex-direction:column; gap:4px;">
               <label><span>Cycle Speed</span><b id="strobe-speed-label-${index}">${strobeSpeed} ms</b></label>
               <input type="range" min="100" max="2000" step="50" value="${strobeSpeed}" oninput="updateStrobeSpeed(${index}, this.value)">
             </div>
 
-            <!-- DIY Recording Button (Hold ON / Release OFF) -->
             <div id="diy-record-row-${index}" style="display: ${diySubMode === 'diy-record' ? 'flex' : 'none'}; flex-direction:column; gap:6px;">
               <div class="btn-diy-pad" id="btn-diy-pad-${index}" 
                 onmousedown="diyPadDown(${index})" onmouseup="diyPadUp(${index})"
@@ -1170,7 +1169,6 @@
               </span>
             </div>
 
-            <!-- DIY Playback Selector -->
             <div id="diy-play-row-${index}" style="display: ${diySubMode === 'diy-play' ? 'flex' : 'none'}; flex-direction:column; gap:6px;">
               <select id="select-pattern-${index}">
                 ${renderPatternOptions()}
@@ -1181,7 +1179,6 @@
             </div>
           </div>
 
-          <!-- 3D Tilt Settings Subbox -->
           <div class="mode-subbox" id="tilt-box-${index}" style="display: ${currentMode === 'tilt' ? 'flex' : 'none'};">
             <label><span>Sensitivity</span><b id="tilt-angle-label-${index}">${tiltConfig.threshold}°</b></label>
             <input type="range" min="8" max="45" value="${tiltConfig.threshold}" oninput="updateTiltThreshold(${index}, this.value)">
@@ -1208,19 +1205,16 @@
             </div>
           </div>
 
-          <!-- Proximity Subbox -->
           <div class="mode-subbox" id="prox-box-${index}" style="display: ${currentMode === 'auto-proximity' ? 'flex' : 'none'};">
             <label><span>Presence Range</span><b>${dev.proximityThreshold || 65} ms</b></label>
             <input type="range" min="20" max="220" value="${dev.proximityThreshold || 65}" oninput="updateProximityVal(${index}, this.value)">
           </div>
 
-          <!-- Voice Subbox -->
           <div class="mode-subbox" id="voice-box-${index}" style="display: ${currentMode === 'voice-custom' ? 'flex' : 'none'};">
             <div class="form-group"><label>ON:</label><input type="text" value="${dev.voiceOn || 'light on'}" oninput="updateVoicePhrase(${index}, 'on', this.value)"></div>
             <div class="form-group"><label>OFF:</label><input type="text" value="${dev.voiceOff || 'light off'}" oninput="updateVoicePhrase(${index}, 'off', this.value)"></div>
           </div>
 
-          <!-- Clap Subbox -->
           <div class="mode-subbox" id="clap-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'flex' : 'none'};">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span style="font-size:0.68rem; font-weight:600;">Hand Profile:</span>
@@ -1418,16 +1412,17 @@
     }
 
     function renderDeviceSelector(dir) {
-      const assignedIp = tiltConfig.mappings[dir];
+      const assignedTarget = tiltConfig.mappings[dir];
       let opts = `<option value="">--</option>`;
       devices.forEach((d) => {
-        opts += `<option value="${d.ip}" ${assignedIp === d.ip ? 'selected' : ''}>${d.name.slice(0, 7)}</option>`;
+        const identifier = d.id || d.ip;
+        opts += `<option value="${identifier}" ${assignedTarget === identifier ? 'selected' : ''}>${d.name.slice(0, 7)}</option>`;
       });
       return `<select onchange="updateTiltMapping('${dir}', this.value)">${opts}</select>`;
     }
 
-    function updateTiltMapping(dir, ip) {
-      tiltConfig.mappings[dir] = ip || null;
+    function updateTiltMapping(dir, identifier) {
+      tiltConfig.mappings[dir] = identifier || null;
       saveState();
     }
 
@@ -1507,16 +1502,16 @@
       if (tiltConfig.actionType === "toggleOnOff") {
         if (detectedSector !== currentTiltActiveSector) {
           if (currentTiltActiveSector && tiltConfig.mappings[currentTiltActiveSector]) {
-            const prevIp = tiltConfig.mappings[currentTiltActiveSector];
-            const prevIdx = devices.findIndex(d => d.ip === prevIp);
+            const prevIdentifier = tiltConfig.mappings[currentTiltActiveSector];
+            const prevIdx = devices.findIndex(d => (d.id && d.id === prevIdentifier) || d.ip === prevIdentifier);
             if (prevIdx !== -1 && devices[prevIdx].state) {
               sendCommand(prevIdx, false);
             }
           }
 
           if (detectedSector && tiltConfig.mappings[detectedSector]) {
-            const targetIp = tiltConfig.mappings[detectedSector];
-            const targetIdx = devices.findIndex(d => d.ip === targetIp);
+            const targetIdentifier = tiltConfig.mappings[detectedSector];
+            const targetIdx = devices.findIndex(d => (d.id && d.id === targetIdentifier) || d.ip === targetIdentifier);
             if (targetIdx !== -1 && !devices[targetIdx].state) {
               sendCommand(targetIdx, true);
             }
@@ -1528,9 +1523,9 @@
         if (detectedSector && detectedSector !== currentTiltActiveSector && now - tiltLastTriggerTime > cooldown) {
           tiltLastTriggerTime = now;
           currentTiltActiveSector = detectedSector;
-          const targetIp = tiltConfig.mappings[detectedSector];
-          if (targetIp) {
-            const targetIdx = devices.findIndex(d => d.ip === targetIp);
+          const targetIdentifier = tiltConfig.mappings[detectedSector];
+          if (targetIdentifier) {
+            const targetIdx = devices.findIndex(d => (d.id && d.id === targetIdentifier) || d.ip === targetIdentifier);
             if (targetIdx !== -1) {
               toggleDevice(targetIdx);
             }
@@ -1728,7 +1723,7 @@
     async function handleToggleClick(index, checkboxElem) {
       const dev = devices[index];
       const targetState = checkboxElem.checked;
-      checkboxElem.checked = dev.state; // Hold UI until verified
+      checkboxElem.checked = dev.state;
 
       if (dev.isOnline === false && !isMqttConnected) {
         alert(`Cannot toggle: "${dev.name}" is powered off.`);
@@ -1751,7 +1746,6 @@
         clearTimeout(lanTimer);
 
         if (res.ok) {
-          // Handled locally: 0 bytes of cloud bandwidth used
           dev.state = targetState;
           dev.isOnline = true;
           dev._isVerifying = false;
@@ -1762,10 +1756,9 @@
         }
       } catch (err) {
         clearTimeout(lanTimer);
-        // Local network unreachable (away from home or on cellular data)
       }
 
-      // 2. SECONDARY: Oracle Cloud MQTT Fallback
+      // 2. SECONDARY: Oracle Cloud MQTT Fallback (Targeting Permanent MAC ID)
       if (isMqttConnected) {
         const published = publishDeviceState(dev, targetState);
         if (published) {
@@ -1779,7 +1772,6 @@
         }
       }
 
-      // Both paths failed
       dev._isVerifying = false;
       dev.isOnline = false;
       saveState();
@@ -1861,7 +1853,7 @@
         else icon.classList.remove("active");
       }
 
-      // 1. Try LAN first (180ms fast timeout for strobe/tilt)
+      // 1. Fast LAN (180ms timeout for high-frequency rhythm/strobe)
       const lanController = new AbortController();
       const lanTimer = setTimeout(() => lanController.abort(), 180);
 
@@ -1877,7 +1869,7 @@
         clearTimeout(lanTimer);
       }
 
-      // 2. Fallback to Cloud MQTT if outside home
+      // 2. Fallback to Cloud MQTT
       if (isMqttConnected) {
         publishDeviceState(dev, targetState);
       }
@@ -1921,14 +1913,14 @@
       dev.bootState = newBoot;
       dev.bgPhoto = newPhoto || dev.bgPhoto;
 
-      // Send setting via LAN first
+      // LAN first
       try {
         fetch(`http://${dev.ip}/setBootState?mode=${newBoot}&k=${NARI_AUTH_TOKEN}`, { mode: 'cors' }).catch(() => {});
       } catch (e) {}
 
-      // Retain setting in Cloud MQTT for when device next connects
+      // Cloud MQTT sync targeting permanent MAC ID
       if (isMqttConnected) {
-        const targetId = (dev.ip || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
+        const targetId = dev.id || (dev.ip || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
         mqttClient.publish(`nari/${targetId}/config/boot`, newBoot, { retain: true });
       }
 
@@ -2074,7 +2066,7 @@
     function shareDevice(index) {
       const dev = devices[index];
       const expiry = Date.now() + (10 * 60 * 1000);
-      const shareUrl = `${window.location.origin}${window.location.pathname}?add=${encodeURIComponent(dev.name)}&ip=${encodeURIComponent(dev.ip)}&exp=${expiry}`;
+      const shareUrl = `${window.location.origin}${window.location.pathname}?add=${encodeURIComponent(dev.name)}&ip=${encodeURIComponent(dev.ip)}&id=${encodeURIComponent(dev.id || "")}&exp=${expiry}`;
       
       if (navigator.share) {
         navigator.share({ title: `NARI Switch: ${dev.name}`, url: shareUrl }).catch(() => {});
