@@ -7,6 +7,9 @@
   <meta name="theme-color" content="#10281e">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+  <!-- MQTT.js over WebSockets -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
   <!-- Firebase Web SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
@@ -76,7 +79,7 @@
       display: flex; 
       justify-content: space-between; 
       align-items: center; 
-      margin-bottom: 12px; 
+      margin-bottom: 8px; 
       padding-bottom: 10px; 
       border-bottom: 1px solid var(--card-border); 
     }
@@ -116,7 +119,18 @@
     .btn-circle-top:active { transform: scale(0.9); }
     .btn-circle-top.btn-gear { background: rgba(255, 255, 255, 0.07); color: var(--accent); border: 1px solid var(--card-border); }
 
-    .sync-status { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 12px; text-align: right; width: 100%; max-width: 440px; }
+    .status-bar-top {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 0.68rem;
+    }
+    .mqtt-badge { color: #f59e0b; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+    .mqtt-badge.connected { color: var(--success); }
+    .sync-status { color: var(--text-muted); text-align: right; }
 
     .container { 
       width: 100%; 
@@ -193,7 +207,7 @@
       font-size: 1.05rem; 
       color: var(--text-muted); 
       transition: background 0.3s var(--ease-120fps), transform 0.3s var(--ease-120fps); 
-      cursor: pointer;
+      cursor: pointer; 
     }
     .icon-box:active { transform: scale(0.9); }
     .icon-box:hover { background: rgba(52, 211, 153, 0.25); color: var(--accent); }
@@ -289,7 +303,7 @@
       font-size: 0.66rem; 
       color: var(--accent); 
       cursor: pointer; 
-      transition: transform 0.25s var(--ease-120fps);
+      transition: transform 0.25s var(--ease-120fps); 
       display: flex; 
       align-items: center; 
       gap: 3px; 
@@ -458,7 +472,11 @@
     </div>
   </header>
 
-  <div class="sync-status" id="syncStatus">Storage: Local</div>
+  <div class="status-bar-top">
+    <div class="mqtt-badge" id="mqttBadge"><i class="fa-solid fa-tower-broadcast"></i> Cloud: Initializing...</div>
+    <div class="sync-status" id="syncStatus">Storage: Local</div>
+  </div>
+
   <div class="container" id="deviceList"></div>
 
   <!-- Consumer-Friendly Add Device Modal -->
@@ -554,6 +572,96 @@
 
   <script>
     const NARI_AUTH_TOKEN = "NARI_SEC_98a7df8a7sdf6a5sd4f";
+
+    // --- ORACLE CLOUD MQTT BROKER CONFIGURATION ---
+    const MQTT_CONFIG = {
+      brokerUrl: "ws://129.225.82.9:9001",
+      clientId: "nari_webapp_" + Math.random().toString(16).substring(2, 8),
+      username: "nari_admin",
+      password: "narimqtt123",
+      clean: true,
+      reconnectPeriod: 2500
+    };
+
+    let mqttClient = null;
+    let isMqttConnected = false;
+
+    function initMqttClient() {
+      const badge = document.getElementById("mqttBadge");
+      try {
+        mqttClient = mqtt.connect(MQTT_CONFIG.brokerUrl, {
+          clientId: MQTT_CONFIG.clientId,
+          username: MQTT_CONFIG.username,
+          password: MQTT_CONFIG.password,
+          clean: MQTT_CONFIG.clean,
+          reconnectPeriod: MQTT_CONFIG.reconnectPeriod
+        });
+
+        mqttClient.on("connect", () => {
+          isMqttConnected = true;
+          if (badge) {
+            badge.classList.add("connected");
+            badge.innerHTML = `<i class="fa-solid fa-cloud"></i> Cloud: Standby (Backup)`;
+          }
+          // Wildcard feedback: nari/<deviceId>/state
+          mqttClient.subscribe("nari/+/state", { qos: 0 });
+        });
+
+        mqttClient.on("message", (topic, message) => {
+          handleIncomingMqtt(topic, message.toString().trim());
+        });
+
+        mqttClient.on("error", (err) => {
+          console.error("MQTT Error:", err);
+          if (badge) {
+            badge.classList.remove("connected");
+            badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Cloud: Error`;
+          }
+        });
+
+        mqttClient.on("offline", () => {
+          isMqttConnected = false;
+          if (badge) {
+            badge.classList.remove("connected");
+            badge.innerHTML = `<i class="fa-solid fa-cloud"></i> Cloud: Offline`;
+          }
+        });
+
+        mqttClient.on("reconnect", () => {
+          if (badge) {
+            badge.classList.remove("connected");
+            badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Cloud: Reconnecting...`;
+          }
+        });
+      } catch (e) {
+        console.error("MQTT Init Failure:", e);
+      }
+    }
+
+    function handleIncomingMqtt(topic, payload) {
+      const parts = topic.split("/");
+      if (parts.length < 3) return;
+      const devIdentifier = parts[1];
+
+      const idx = devices.findIndex(d => (d.ip === devIdentifier || d.id === devIdentifier || d.ip.replace(/\./g, "_") === devIdentifier));
+      if (idx !== -1) {
+        const newState = payload === "1" || payload.toLowerCase() === "true" || payload.toLowerCase() === "on";
+        devices[idx].state = newState;
+        devices[idx].isOnline = true;
+        devices[idx]._isVerifying = false;
+        saveState();
+        render();
+      }
+    }
+
+    function publishDeviceState(dev, targetState) {
+      if (!mqttClient || !isMqttConnected) return false;
+      const targetId = (dev.ip || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const topic = `nari/${targetId}/set`;
+      const payload = targetState ? "1" : "0";
+      mqttClient.publish(topic, payload, { qos: 0 });
+      return true;
+    }
 
     const firebaseConfig = {
       apiKey: "AIzaSyDdWakuiPRF2ucBnEtJ2s77e0Gf7MK2djs",
@@ -755,13 +863,13 @@
     async function checkDeviceHealth(dev) {
       const controller = new AbortController();
       const startT = performance.now();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
 
       try {
         const res = await fetch(`http://${dev.ip}/ping?k=${NARI_AUTH_TOKEN}&_cb=${Date.now()}`, { 
-          method: 'GET',
-          mode: 'cors',
-          cache: 'no-store',
+          method: 'GET', 
+          mode: 'cors', 
+          cache: 'no-store', 
           signal: controller.signal 
         });
         clearTimeout(timeoutId);
@@ -777,7 +885,8 @@
       } catch (e) {
         clearTimeout(timeoutId);
         dev.wifiRssi = null;
-        return false;
+        // Fall back to active status if Cloud broker is connected
+        return isMqttConnected;
       }
     }
 
@@ -808,10 +917,14 @@
     setInterval(pollAllDevices, 4500);
 
     function getWifiIcon(rssi, isOnline) {
-      if (!isOnline || rssi === null) return `<i class="fa-solid fa-wifi" style="color:var(--danger); opacity:0.6;" title="Offline"></i>`;
-      if (rssi >= -55) return `<i class="fa-solid fa-wifi" style="color:#10b981;" title="Strong Wi-Fi (${rssi} dBm)"></i>`;
-      if (rssi >= -75) return `<i class="fa-solid fa-wifi" style="color:#38bdf8;" title="Good Wi-Fi (${rssi} dBm)"></i>`;
-      return `<i class="fa-solid fa-wifi" style="color:#f59e0b;" title="Weak Wi-Fi (${rssi} dBm)"></i>`;
+      if (!isOnline) return `<i class="fa-solid fa-wifi" style="color:var(--danger); opacity:0.6;" title="Offline"></i>`;
+      if (rssi !== null) {
+        if (rssi >= -55) return `<i class="fa-solid fa-wifi" style="color:#10b981;" title="LAN Strong (${rssi} dBm)"></i>`;
+        if (rssi >= -75) return `<i class="fa-solid fa-wifi" style="color:#38bdf8;" title="LAN Good (${rssi} dBm)"></i>`;
+        return `<i class="fa-solid fa-wifi" style="color:#f59e0b;" title="LAN Weak (${rssi} dBm)"></i>`;
+      }
+      if (isMqttConnected) return `<i class="fa-solid fa-cloud" style="color:var(--accent);" title="Cloud Active (Remote)"></i>`;
+      return `<i class="fa-solid fa-wifi" style="color:var(--accent);" title="Online"></i>`;
     }
 
     function openScanModal() {
@@ -837,7 +950,7 @@
       try {
         const res = await fetch(`http://${ip}/ping?k=${NARI_AUTH_TOKEN}`, { 
           method: 'GET', 
-          mode: 'cors',
+          mode: 'cors', 
           signal: controller.signal 
         });
         clearTimeout(timeoutId);
@@ -993,7 +1106,7 @@
             <h3>${dev.name}</h3>
             <p>
               <span class="status-dot ${isOnline ? 'status-online' : 'status-offline'}"></span>
-              ${isOnline ? dev.ip : 'Powered Off'}
+              ${isOnline ? (dev.wifiRssi !== null ? 'LAN Mode' : 'Cloud Remote') : 'Powered Off'}
             </p>
           </div>
 
@@ -1610,12 +1723,14 @@
       }
     }
 
+    // --- HYBRID DUAL-ROUTING ENGINE (LAN FIRST -> CLOUD MQTT FALLBACK) ---
+
     async function handleToggleClick(index, checkboxElem) {
       const dev = devices[index];
       const targetState = checkboxElem.checked;
-      checkboxElem.checked = dev.state;
+      checkboxElem.checked = dev.state; // Hold UI until verified
 
-      if (dev.isOnline === false) {
+      if (dev.isOnline === false && !isMqttConnected) {
         alert(`Cannot toggle: "${dev.name}" is powered off.`);
         return;
       }
@@ -1623,69 +1738,117 @@
       dev._isVerifying = true;
       render();
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1800);
+      // 1. PRIMARY: Fast LAN HTTP probe (280ms timeout)
+      const lanController = new AbortController();
+      const lanTimer = setTimeout(() => lanController.abort(), 280);
 
       try {
         const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
           method: 'GET',
           mode: 'cors',
-          signal: controller.signal
+          signal: lanController.signal
         });
-        clearTimeout(timeoutId);
-        if (!res.ok) throw new Error("Authentication Failed");
+        clearTimeout(lanTimer);
 
-        dev.state = targetState;
-        dev.isOnline = true;
-        dev._isVerifying = false;
-        saveState();
-        render();
-        if (navigator.vibrate) navigator.vibrate(45);
+        if (res.ok) {
+          // Handled locally: 0 bytes of cloud bandwidth used
+          dev.state = targetState;
+          dev.isOnline = true;
+          dev._isVerifying = false;
+          saveState();
+          render();
+          if (navigator.vibrate) navigator.vibrate(45);
+          return;
+        }
       } catch (err) {
-        clearTimeout(timeoutId);
-        dev._isVerifying = false;
-        dev.isOnline = false;
-        saveState();
-        render();
-        alert(`⚠️ Could not reach "${dev.name}". Hardware is offline.`);
+        clearTimeout(lanTimer);
+        // Local network unreachable (away from home or on cellular data)
       }
+
+      // 2. SECONDARY: Oracle Cloud MQTT Fallback
+      if (isMqttConnected) {
+        const published = publishDeviceState(dev, targetState);
+        if (published) {
+          dev.state = targetState;
+          dev.isOnline = true;
+          dev._isVerifying = false;
+          saveState();
+          render();
+          if (navigator.vibrate) navigator.vibrate(45);
+          return;
+        }
+      }
+
+      // Both paths failed
+      dev._isVerifying = false;
+      dev.isOnline = false;
+      saveState();
+      render();
+      alert(`⚠️ Could not reach "${dev.name}". Check hardware power.`);
     }
 
     function toggleDevice(index) {
       const dev = devices[index];
-      if (dev && dev.isOnline !== false) {
+      if (dev && (dev.isOnline !== false || isMqttConnected)) {
         sendCommand(index, !dev.state);
       }
     }
 
     async function sendCommand(index, targetState) {
       const dev = devices[index];
-      if (!dev || dev.isOnline === false) return;
+      if (!dev) return;
 
       dev._isVerifying = true;
       render();
 
+      // 1. PRIMARY: Fast LAN (280ms timeout)
+      const lanController = new AbortController();
+      const lanTimer = setTimeout(() => lanController.abort(), 280);
+
       try {
         const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
           method: 'GET',
-          mode: 'cors'
+          mode: 'cors',
+          signal: lanController.signal
         });
+        clearTimeout(lanTimer);
+
         if (res.ok) {
           dev.state = targetState;
+          dev.isOnline = true;
           dev._isVerifying = false;
           saveState();
           render();
           if (navigator.vibrate) navigator.vibrate(45);
+          return;
         }
       } catch (e) {
-        dev._isVerifying = false;
-        render();
+        clearTimeout(lanTimer);
       }
+
+      // 2. SECONDARY: Oracle Cloud MQTT Fallback
+      if (isMqttConnected) {
+        const published = publishDeviceState(dev, targetState);
+        if (published) {
+          dev.state = targetState;
+          dev.isOnline = true;
+          dev._isVerifying = false;
+          saveState();
+          render();
+          if (navigator.vibrate) navigator.vibrate(45);
+          return;
+        }
+      }
+
+      dev._isVerifying = false;
+      dev.isOnline = false;
+      saveState();
+      render();
     }
 
     async function quietSendCommand(index, targetState) {
       const dev = devices[index];
-      if (!dev || dev.isOnline === false) return;
+      if (!dev) return;
 
       dev.state = targetState;
 
@@ -1698,12 +1861,26 @@
         else icon.classList.remove("active");
       }
 
+      // 1. Try LAN first (180ms fast timeout for strobe/tilt)
+      const lanController = new AbortController();
+      const lanTimer = setTimeout(() => lanController.abort(), 180);
+
       try {
-        await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
+        const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
           method: 'GET',
-          mode: 'cors'
+          mode: 'cors',
+          signal: lanController.signal
         });
-      } catch (e) {}
+        clearTimeout(lanTimer);
+        if (res.ok) return;
+      } catch (e) {
+        clearTimeout(lanTimer);
+      }
+
+      // 2. Fallback to Cloud MQTT if outside home
+      if (isMqttConnected) {
+        publishDeviceState(dev, targetState);
+      }
     }
 
     function triggerEditOption(index, e) {
@@ -1744,9 +1921,16 @@
       dev.bootState = newBoot;
       dev.bgPhoto = newPhoto || dev.bgPhoto;
 
+      // Send setting via LAN first
       try {
         fetch(`http://${dev.ip}/setBootState?mode=${newBoot}&k=${NARI_AUTH_TOKEN}`, { mode: 'cors' }).catch(() => {});
       } catch (e) {}
+
+      // Retain setting in Cloud MQTT for when device next connects
+      if (isMqttConnected) {
+        const targetId = (dev.ip || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
+        mqttClient.publish(`nari/${targetId}/config/boot`, newBoot, { retain: true });
+      }
 
       saveState();
       render();
@@ -1900,6 +2084,7 @@
     }
 
     // Startup initializers
+    initMqttClient();
     checkUrlPairing();
     render();
     pollAllDevices();
