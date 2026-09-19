@@ -5,16 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NARI Smart Switch</title>
   <meta name="theme-color" content="#10281e">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>NARI Smart Home</title>
+  <meta name="description" content="Control NARI smart switches over LAN and cloud with phone-sensor automations.">
+  <meta name="theme-color" content="#0b1a13">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NARI Home">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
+  <link rel="stylesheet" href="css/app.css">
+ 
   <!-- MQTT.js over WebSockets -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
+ 
   <!-- Firebase Web SDKs -->
+  <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+  <!-- Firebase (optional: sign-in + cloud sync of devices/automations) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-
+ 
   <style>
     :root {
       --bg: #0b1a13;
@@ -29,7 +43,7 @@
       --switch-off: #1e3a2b;
       --ease-120fps: cubic-bezier(0.16, 1, 0.3, 1);
     }
-
+ 
     body.theme-emerald {
       --bg: #061e14;
       --card-bg: #0b2d1f;
@@ -60,7 +74,7 @@
       --text-muted: #fcd34d;
       --switch-off: #452d14;
     }
-
+ 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { 
       background: var(--bg); 
@@ -118,7 +132,7 @@
     }
     .btn-circle-top:active { transform: scale(0.9); }
     .btn-circle-top.btn-gear { background: rgba(255, 255, 255, 0.07); color: var(--accent); border: 1px solid var(--card-border); }
-
+ 
     .status-bar-top {
       width: 100%;
       max-width: 440px;
@@ -131,7 +145,7 @@
     .mqtt-badge { color: #f59e0b; font-weight: 600; display: flex; align-items: center; gap: 5px; }
     .mqtt-badge.connected { color: var(--success); }
     .sync-status { color: var(--text-muted); text-align: right; }
-
+ 
     .container { 
       width: 100%; 
       max-width: 440px; 
@@ -139,14 +153,14 @@
       grid-template-columns: repeat(2, 1fr); 
       gap: 12px; 
     }
-
+ 
     .card-wrapper {
       display: flex;
       flex-direction: column;
       width: 100%;
       position: relative;
     }
-
+ 
     /* Square Smart Card */
     .card { 
       background: var(--card-bg); 
@@ -170,7 +184,7 @@
       will-change: transform;
     }
     .card:active { transform: scale(0.975); }
-
+ 
     .card::before {
       content: "";
       position: absolute;
@@ -181,7 +195,7 @@
       z-index: 1;
     }
     .card > * { position: relative; z-index: 2; transition: opacity 0.45s var(--ease-120fps); }
-
+ 
     .card.idle-fade::before { background: rgba(8, 16, 12, 0.12); }
     .card.idle-fade .fading-label { opacity: 0; pointer-events: none; }
     .card.idle-fade .slider {
@@ -191,11 +205,11 @@
       border: 1px solid rgba(255, 255, 255, 0.45);
     }
     .card.idle-fade .slider:before { background: rgba(255, 255, 255, 0.88); }
-
+ 
     .card.device-offline { opacity: 0.42; filter: grayscale(0.85); border-color: rgba(239, 68, 68, 0.25); }
-
+ 
     .card-top { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
-
+ 
     .icon-box { 
       width: 36px; 
       height: 36px; 
@@ -212,9 +226,9 @@
     .icon-box:active { transform: scale(0.9); }
     .icon-box:hover { background: rgba(52, 211, 153, 0.25); color: var(--accent); }
     .icon-box.active { background: rgba(16, 185, 129, 0.24); color: var(--success); }
-
+ 
     .top-right-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; position: relative; }
-
+ 
     .switch-wrap { position: relative; display: inline-block; width: 44px; height: 24px; }
     .switch-wrap input { opacity: 0; width: 0; height: 0; }
     .slider {
@@ -245,7 +259,7 @@
     .switch-wrap.disabled { pointer-events: none; opacity: 0.45; }
     .switch-wrap.verifying .slider { background-color: #f59e0b !important; animation: pulse 0.7s infinite alternate; }
     @keyframes pulse { from { opacity: 0.6; } to { opacity: 1.0; } }
-
+ 
     .btn-edit-revealed {
       display: none;
       background: rgba(18, 36, 27, 0.95);
@@ -259,7 +273,7 @@
       animation: fadeIn 0.3s var(--ease-120fps);
     }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-
+ 
     .edit-dropdown {
       display: none;
       position: absolute;
@@ -289,15 +303,15 @@
     }
     .edit-menu-item:hover { background: rgba(52, 211, 153, 0.15); color: var(--accent); }
     .edit-menu-item.danger { color: #fca5a5; }
-
+ 
     .card-info { margin-top: 4px; }
     .card-info h3 { font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .card-info p { font-size: 0.66rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px; }
-
+ 
     .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
     .status-online { background: var(--success); box-shadow: 0 0 6px var(--success); }
     .status-offline { background: var(--danger); }
-
+ 
     .card-bottom-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 2px; }
     .drawer-trigger { 
       font-size: 0.66rem; 
@@ -310,7 +324,7 @@
     }
     .drawer-trigger:hover { transform: scale(1.04); }
     .wifi-badge { font-size: 0.68rem; color: var(--accent); display: flex; align-items: center; gap: 3px; }
-
+ 
     /* Equal Square AI Modes Drawer */
     .card-dropdown-drawer {
       max-height: 0;
@@ -340,7 +354,7 @@
     }
     .card-dropdown-drawer::-webkit-scrollbar { width: 4px; }
     .card-dropdown-drawer::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
-
+ 
     .mode-subbox { 
       display: flex; 
       flex-direction: column; 
@@ -352,7 +366,7 @@
     }
     .mode-subbox label { font-size: 0.68rem; color: var(--accent); display: flex; justify-content: space-between; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
-
+ 
     .btn-diy-pad {
       background: #1e293b;
       border: 2px dashed var(--accent);
@@ -376,7 +390,7 @@
       border-color: #ef4444;
       animation: pulse 1s infinite alternate;
     }
-
+ 
     /* Modals */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.78); display: none; justify-content: center; align-items: center; padding: 16px; z-index: 100; backdrop-filter: blur(4px); }
     .modal-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px; width: 100%; max-width: 380px; padding: 18px; display: flex; flex-direction: column; gap: 11px; max-height: 90vh; overflow-y: auto; box-shadow: 0 16px 36px rgba(0,0,0,0.7); }
@@ -386,7 +400,7 @@
     input[type=text], select { background: rgba(0,0,0,0.35); border: 1px solid var(--card-border); color: white; padding: 7px 9px; border-radius: 8px; font-size: 0.76rem; outline: none; width: 100%; }
     .form-group { display: flex; flex-direction: column; gap: 3px; }
     .form-group label { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
-
+ 
     .btn-primary { 
       background: var(--primary); 
       color: white; 
@@ -418,7 +432,7 @@
       font-size: 0.74rem; 
       text-decoration: none; 
     }
-
+ 
     .compass-matrix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 2px; }
     .matrix-node {
       background: rgba(255,255,255,0.04);
@@ -440,17 +454,17 @@
     }
     .matrix-title { font-size: 0.6rem; font-weight: 700; color: var(--accent); }
     .matrix-node select { font-size: 0.6rem; padding: 2px; }
-
+ 
     .meter-container { width: 100%; height: 5px; background: #0b1a13; border-radius: 3px; overflow: hidden; position: relative; border: 1px solid var(--card-border); }
     .meter-bar { width: 0%; height: 100%; background: var(--accent); transition: width 0.05s linear; }
     .btn-train-clap { padding: 6px; background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); border-radius: 7px; color: white; font-size: 0.68rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
     .btn-train-clap.listening { background: #dc2626; animation: pulse 1s infinite alternate; }
-
+ 
     .sensor-feedback { font-size: 0.68rem; color: #fbbf24; display: flex; align-items: center; gap: 5px; font-weight: 500; }
     .scan-status-box { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 8px; text-align: center; }
     .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
     .progress-fill { width: 0%; height: 100%; background: var(--primary); transition: width 0.2s var(--ease-120fps); }
-
+ 
     .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .theme-tile { padding: 10px; border-radius: 8px; border: 1px solid var(--card-border); display: flex; align-items: center; gap: 8px; font-size: 0.78rem; cursor: pointer; }
     .swatch { width: 16px; height: 16px; border-radius: 50%; }
@@ -460,25 +474,35 @@
   </style>
 </head>
 <body>
-
+ 
   <header>
     <div class="brand"><i class="fa-solid fa-bolt"></i> NARI Smart Home</div>
+    <div class="brand">
+      <div class="logo"><i class="fa-solid fa-house-signal"></i></div>
+      <div>NARI Home<small>Smart Switch Control</small></div>
+    </div>
     <div class="header-actions">
       <div id="authContainer">
         <button class="btn-auth" onclick="handleGoogleSignIn()"><i class="fa-brands fa-google"></i> Login</button>
       </div>
       <button class="btn-circle-top btn-gear" onclick="openThemeModal()"><i class="fa-solid fa-gear"></i></button>
       <button class="btn-circle-top" onclick="openScanModal()"><i class="fa-solid fa-plus"></i></button>
+      <div id="authContainer"></div>
+      <button class="icon-btn" id="btnDiag" title="Connection status"><i class="fa-solid fa-heart-pulse"></i><span class="dot hidden" id="diagDot"></span></button>
+      <button class="icon-btn" id="btnSettings" title="Settings"><i class="fa-solid fa-gear"></i></button>
+      <button class="icon-btn primary" id="btnAdd" title="Add switch"><i class="fa-solid fa-plus"></i></button>
     </div>
   </header>
-
+ 
   <div class="status-bar-top">
     <div class="mqtt-badge" id="mqttBadge"><i class="fa-solid fa-tower-broadcast"></i> Cloud: Initializing...</div>
     <div class="sync-status" id="syncStatus">Storage: Local</div>
   </div>
-
+ 
+  <div class="status-strip" id="statusStrip"></div>
+  <div id="banners"></div>
   <div class="container" id="deviceList"></div>
-
+ 
   <!-- Consumer-Friendly Add Device Modal -->
   <div class="modal-overlay" id="scanModal">
     <div class="modal-box">
@@ -501,15 +525,19 @@
           <div>Return here and tap the button below.</div>
         </div>
       </div>
-
+  <!-- Sheets are rendered by js/app.js -->
+  <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+  <div class="toasts" id="toasts"></div>
+  <button class="fab-install" id="btnInstall"><i class="fa-solid fa-download"></i> Install app</button>
+ 
       <a href="ms-settings:network-wifi" class="btn-secondary" onclick="openWifiNotice()">
         <i class="fa-solid fa-wifi"></i> Open Wi-Fi Settings
       </a>
-
+ 
       <button class="btn-primary" id="btnStartScan" onclick="startAutomatedCustomerScan()">
         <i class="fa-solid fa-satellite-dish"></i> I'm Connected, Add Switch
       </button>
-
+ 
       <div class="scan-status-box" id="scanStatusBox" style="display:none; margin-top:4px;">
         <span id="scanStatusText" style="font-size:0.74rem; font-weight:600; color:var(--accent);">Detecting switch...</span>
         <div class="progress-bar">
@@ -518,7 +546,7 @@
       </div>
     </div>
   </div>
-
+ 
   <!-- Bulb Settings Modal -->
   <div class="modal-overlay" id="bulbSettingsModal">
     <div class="modal-box">
@@ -526,12 +554,12 @@
         <span id="bulbSettingsTitle">Appliance Settings</span>
         <button class="btn-close" onclick="closeBulbModal()">✕</button>
       </div>
-
+ 
       <div class="form-group">
         <label>Rename Appliance:</label>
         <input type="text" id="modalDevName" placeholder="e.g. Living Room Light">
       </div>
-
+ 
       <div class="form-group">
         <label>Power-On Relay State (After Power Cut):</label>
         <select id="modalBootState">
@@ -540,20 +568,20 @@
           <option value="ON">ON STATE (Always turn on)</option>
         </select>
       </div>
-
+ 
       <div class="form-group">
         <label>Custom Card Picture:</label>
         <input type="file" id="cardPhotoFile" accept="image/*" onchange="handlePhotoUpload(event)">
         <input type="text" id="cardPhotoUrl" placeholder="Or paste image URL (https://...)">
       </div>
-
+ 
       <div style="display:flex; gap:8px; margin-top:6px;">
         <button class="btn-primary" style="flex:1;" onclick="saveBulbSettings()">Save Changes</button>
         <button class="btn-primary" style="background:#475569; flex:0.4;" onclick="clearCardPhoto()">Clear Photo</button>
       </div>
     </div>
   </div>
-
+ 
   <!-- Theme Modal -->
   <div class="modal-overlay" id="themeModal">
     <div class="modal-box">
@@ -569,10 +597,10 @@
       </div>
     </div>
   </div>
-
+ 
   <script>
     const NARI_AUTH_TOKEN = "NARI_SEC_98a7df8a7sdf6a5sd4f";
-
+ 
     // --- ORACLE CLOUD MQTT BROKER CONFIGURATION ---
     const MQTT_CONFIG = {
       brokerUrl: "ws://129.225.82.9:9001",
@@ -582,10 +610,10 @@
       clean: true,
       reconnectPeriod: 2500
     };
-
+ 
     let mqttClient = null;
     let isMqttConnected = false;
-
+ 
     function initMqttClient() {
       const badge = document.getElementById("mqttBadge");
       try {
@@ -596,7 +624,7 @@
           clean: MQTT_CONFIG.clean,
           reconnectPeriod: MQTT_CONFIG.reconnectPeriod
         });
-
+ 
         mqttClient.on("connect", () => {
           isMqttConnected = true;
           if (badge) {
@@ -606,11 +634,11 @@
           // Subscribes using wildcard: nari/<hardware_mac_or_ip>/state
           mqttClient.subscribe("nari/+/state", { qos: 0 });
         });
-
+ 
         mqttClient.on("message", (topic, message) => {
           handleIncomingMqtt(topic, message.toString().trim());
         });
-
+ 
         mqttClient.on("error", (err) => {
           console.error("MQTT Error:", err);
           if (badge) {
@@ -618,7 +646,7 @@
             badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Cloud: Error`;
           }
         });
-
+ 
         mqttClient.on("offline", () => {
           isMqttConnected = false;
           if (badge) {
@@ -626,7 +654,7 @@
             badge.innerHTML = `<i class="fa-solid fa-cloud"></i> Cloud: Offline`;
           }
         });
-
+ 
         mqttClient.on("reconnect", () => {
           if (badge) {
             badge.classList.remove("connected");
@@ -637,12 +665,12 @@
         console.error("MQTT Init Failure:", e);
       }
     }
-
+ 
     function handleIncomingMqtt(topic, payload) {
       const parts = topic.split("/");
       if (parts.length < 3) return;
       const devIdentifier = parts[1];
-
+ 
       // Identify by permanent Hardware MAC ID first, then fallback to IP
       const idx = devices.findIndex(d => (d.id === devIdentifier || d.ip === devIdentifier || d.ip.replace(/\./g, "_") === devIdentifier));
       if (idx !== -1) {
@@ -654,7 +682,7 @@
         render();
       }
     }
-
+ 
     function publishDeviceState(dev, targetState) {
       if (!mqttClient || !isMqttConnected) return false;
       // Target the permanent hardware MAC ID
@@ -664,7 +692,7 @@
       mqttClient.publish(topic, payload, { qos: 0 });
       return true;
     }
-
+ 
     const firebaseConfig = {
       apiKey: "AIzaSyDdWakuiPRF2ucBnEtJ2s77e0Gf7MK2djs",
       authDomain: "nari-smart-home.firebaseapp.com",
@@ -673,20 +701,20 @@
       messagingSenderId: "285100807860",
       appId: "1:285100807860:web:31a5c284f9c457111c29e1"
     };
-
+ 
     let currentUser = null, db = null, auth = null;
     try {
       if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       auth = firebase.auth();
       db = firebase.firestore();
     } catch (err) { console.error("Init Error:", err); }
-
+ 
     let devices = JSON.parse(localStorage.getItem("nari_devices") || "[]");
     let openDrawerIndex = null;
     let activeDeviceIndex = null;
     let idleTimer = null;
     let isScanning = false;
-
+ 
     // Sensor & Audio Engines
     let audioCtx = null;
     let micStream = null;
@@ -695,7 +723,7 @@
     let voiceRecognizer = null;
     let isTrainingClap = false;
     let clapTrainingBuffer = [];
-
+ 
     // Strobe & Custom DIY Rhythm Engines
     let strobeTimers = {};
     let diyPlayTimers = {};
@@ -707,9 +735,9 @@
       currentLightState: false,
       silenceTimeout: null
     };
-
+ 
     let savedDiyPatterns = JSON.parse(localStorage.getItem("nari_diy_patterns") || "[]");
-
+ 
     let tiltConfig = JSON.parse(localStorage.getItem("nari_tilt_config") || JSON.stringify({
       threshold: 16,
       actionType: "toggleOnOff",
@@ -718,13 +746,13 @@
         S: null, SW: null, W: null, NW: null
       }
     }));
-
+ 
     let currentTiltActiveSector = null;
     let tiltLastTriggerTime = 0;
-
+ 
     const savedTheme = localStorage.getItem("nari_theme") || "default";
     applyTheme(savedTheme, false);
-
+ 
     function applyTheme(t, save = true) {
       document.body.className = "";
       if (t !== "default") document.body.classList.add(`theme-${t}`);
@@ -732,7 +760,7 @@
     }
     function openThemeModal() { document.getElementById("themeModal").style.display = "flex"; }
     function closeThemeModal() { document.getElementById("themeModal").style.display = "none"; }
-
+ 
     function resetIdleTimer() {
       document.querySelectorAll('.card').forEach(c => c.classList.remove('idle-fade'));
       clearTimeout(idleTimer);
@@ -744,18 +772,18 @@
     document.onmousemove = resetIdleTimer;
     document.ontouchstart = resetIdleTimer;
     document.onclick = resetIdleTimer;
-
+ 
     document.addEventListener("click", () => {
       document.querySelectorAll('.edit-dropdown').forEach(el => el.classList.remove('show'));
       document.querySelectorAll('.btn-edit-revealed').forEach(el => el.style.display = 'none');
     });
-
+ 
     if (auth) {
       auth.onAuthStateChanged(async (user) => {
         currentUser = user;
         const authContainer = document.getElementById("authContainer");
         const syncStatus = document.getElementById("syncStatus");
-
+ 
         if (user) {
           authContainer.innerHTML = `
             <button class="btn-auth" onclick="handleSignOut()">
@@ -772,7 +800,7 @@
         render();
       });
     }
-
+ 
     async function handleGoogleSignIn() {
       try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
       catch (e) { alert("Login error: " + e.message); }
@@ -780,7 +808,7 @@
     async function handleSignOut() {
       if (confirm("Sign out?")) { await auth.signOut(); render(); }
     }
-
+ 
     async function loadDevicesFromCloud() {
       if (!currentUser || !db) return;
       try {
@@ -797,7 +825,7 @@
         } else if (devices.length > 0) saveState();
       } catch (e) { console.error("Cloud fetch failed:", e); }
     }
-
+ 
     function saveState() {
       localStorage.setItem("nari_devices", JSON.stringify(devices));
       localStorage.setItem("nari_tilt_config", JSON.stringify(tiltConfig));
@@ -812,14 +840,14 @@
         }).catch(() => {});
       }
     }
-
+ 
     function checkUrlPairing() {
       const params = new URLSearchParams(window.location.search);
       const addName = params.get('add');
       const addIp = params.get('ip');
       const addId = params.get('id') || "";
       const expiresAt = parseInt(params.get('exp'), 10);
-
+ 
       if (addName && addIp) {
         const now = Date.now();
         if (!expiresAt || isNaN(expiresAt) || now > expiresAt) {
@@ -827,7 +855,7 @@
           window.history.replaceState({}, document.title, window.location.pathname);
           return;
         }
-
+ 
         if (!devices.some(d => (addId && d.id === addId) || d.ip === addIp)) {
           devices.push({
             id: addId,
@@ -853,7 +881,7 @@
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
-
+ 
     function toggleCardDrawer(index, e) {
       if (e) e.stopPropagation();
       openDrawerIndex = openDrawerIndex === index ? null : index;
@@ -862,12 +890,12 @@
         handleModeChange(openDrawerIndex, devices[openDrawerIndex].mode || "none");
       }
     }
-
+ 
     async function checkDeviceHealth(dev) {
       const controller = new AbortController();
       const startT = performance.now();
       const timeoutId = setTimeout(() => controller.abort(), 1200);
-
+ 
       try {
         const res = await fetch(`http://${dev.ip}/ping?k=${NARI_AUTH_TOKEN}&_cb=${Date.now()}`, { 
           method: 'GET', 
@@ -877,7 +905,7 @@
         });
         clearTimeout(timeoutId);
         dev.rtt = Math.round(performance.now() - startT);
-
+ 
         if (res.ok) {
           const data = await res.json();
           if (data.id && !dev.id) dev.id = data.id;
@@ -892,11 +920,11 @@
         return isMqttConnected;
       }
     }
-
+ 
     async function pollAllDevices() {
       if (devices.length === 0 || isScanning) return;
       let changed = false;
-
+ 
       for (let i = 0; i < devices.length; i++) {
         if (devices[i]._isVerifying) continue;
         const online = await checkDeviceHealth(devices[i]);
@@ -904,7 +932,7 @@
           devices[i].isOnline = online;
           changed = true;
         }
-
+ 
         if (devices[i].mode === 'auto-proximity' && online) {
           const threshold = devices[i].proximityThreshold || 65;
           const isNear = (devices[i].rtt || 999) <= threshold;
@@ -918,7 +946,7 @@
       if (changed) render();
     }
     setInterval(pollAllDevices, 4500);
-
+ 
     function getWifiIcon(rssi, isOnline) {
       if (!isOnline) return `<i class="fa-solid fa-wifi" style="color:var(--danger); opacity:0.6;" title="Offline"></i>`;
       if (rssi !== null) {
@@ -929,24 +957,24 @@
       if (isMqttConnected) return `<i class="fa-solid fa-cloud" style="color:var(--accent);" title="Cloud Active (Remote)"></i>`;
       return `<i class="fa-solid fa-wifi" style="color:var(--accent);" title="Online"></i>`;
     }
-
+ 
     function openScanModal() {
       document.getElementById("scanStatusBox").style.display = "none";
       document.getElementById("btnStartScan").disabled = false;
       document.getElementById("btnStartScan").innerHTML = `<i class="fa-solid fa-satellite-dish"></i> I'm Connected, Add Switch`;
       document.getElementById("scanModal").style.display = "flex";
     }
-
+ 
     function closeScanModal() {
       document.getElementById("scanModal").style.display = "none";
     }
-
+ 
     function openWifiNotice() {
       setTimeout(() => {
         alert("Connect your device to 'NARI-Switch-XXXX' in your Wi-Fi settings (Password: nariSetup2026).");
       }, 300);
     }
-
+ 
     async function probeIp(ip) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 950);
@@ -967,36 +995,36 @@
         return { found: false };
       }
     }
-
+ 
     async function startAutomatedCustomerScan() {
       const statusBox = document.getElementById("scanStatusBox");
       const statusText = document.getElementById("scanStatusText");
       const prog = document.getElementById("scanProgress");
       const btn = document.getElementById("btnStartScan");
-
+ 
       btn.disabled = true;
       statusBox.style.display = "flex";
       isScanning = true;
-
+ 
       const subnetsToScan = ["192.168.1", "192.168.0", "192.168.29", "192.168.43"];
       let newlyAdded = 0;
-
+ 
       for (let s = 0; s < subnetsToScan.length; s++) {
         const prefix = subnetsToScan[s];
         statusText.innerText = `Searching your network...`;
         
         const totalHosts = 254;
         const batchSize = 30;
-
+ 
         for (let i = 1; i <= totalHosts; i += batchSize) {
           const batch = [];
           for (let j = i; j < i + batchSize && j <= totalHosts; j++) {
             batch.push(`${prefix}.${j}`);
           }
-
+ 
           const overallPct = Math.round(((s * totalHosts + i) / (subnetsToScan.length * totalHosts)) * 100);
           prog.style.width = `${overallPct}%`;
-
+ 
           const results = await Promise.all(batch.map(ip => probeIp(ip)));
           for (const res of results) {
             if (res.found) {
@@ -1028,7 +1056,7 @@
         }
         if (newlyAdded > 0) break;
       }
-
+ 
       prog.style.width = `100%`;
       if (newlyAdded > 0) {
         statusText.innerText = `✓ Switch Found & Added!`;
@@ -1041,11 +1069,11 @@
       }
       isScanning = false;
     }
-
+ 
     function render() {
       const list = document.getElementById("deviceList");
       list.innerHTML = "";
-
+ 
       if (devices.length === 0) {
         list.innerHTML = `
           <div style="grid-column: span 2; text-align:center; padding:35px 10px; color:var(--text-muted);">
@@ -1054,7 +1082,7 @@
         `;
         return;
       }
-
+ 
       devices.forEach((dev, index) => {
         const isOnline = dev.isOnline !== false;
         const isVerifying = !!dev._isVerifying;
@@ -1063,37 +1091,37 @@
         const currentMode = dev.mode || "none";
         const strobeSpeed = dev.strobeSpeed || 500;
         const diySubMode = dev.diySubMode || "strobe";
-
+ 
         const cardWrapper = document.createElement("div");
         cardWrapper.className = "card-wrapper";
         cardWrapper.id = `wrapper-${index}`;
-
+ 
         const card = document.createElement("div");
         card.className = `card ${isOnline ? '' : 'device-offline'}`;
         card.id = `card-${index}`;
         if (hasBg) card.style.backgroundImage = `url("${dev.bgPhoto}")`;
-
+ 
         card.oncontextmenu = (e) => triggerEditOption(index, e);
         let touchTimer = null;
         card.ontouchstart = (e) => { touchTimer = setTimeout(() => triggerEditOption(index, e), 500); };
         card.ontouchend = () => clearTimeout(touchTimer);
-
+ 
         card.innerHTML = `
           <div class="card-top">
             <div class="icon-box ${dev.state && isOnline ? 'active' : ''}" id="icon-box-${index}" onclick="openBulbModal(${index}, event)" title="Appliance Settings">
               <i class="fa-solid ${!isOnline ? 'fa-plug-circle-xmark' : (dev.state ? 'fa-lightbulb' : 'fa-power-off')}"></i>
             </div>
-
+ 
             <div class="top-right-wrap">
               <label class="switch-wrap ${!isOnline ? 'disabled' : ''} ${isVerifying ? 'verifying' : ''}" onclick="event.stopPropagation();">
                 <input type="checkbox" id="toggle-input-${index}" ${dev.state ? 'checked' : ''} onchange="handleToggleClick(${index}, this)">
                 <span class="slider"></span>
               </label>
-
+ 
               <button class="btn-edit-revealed" id="btn-edit-${index}" onclick="toggleEditDropdown(${index}, event)">
                 Edit ▾
               </button>
-
+ 
               <div class="edit-dropdown" id="edit-menu-${index}">
                 <button class="edit-menu-item" onclick="event.stopPropagation(); shareDevice(${index});">
                   <i class="fa-solid fa-share-nodes"></i> Share Link
@@ -1104,7 +1132,7 @@
               </div>
             </div>
           </div>
-
+ 
           <div class="card-info fading-label">
             <h3>${dev.name}</h3>
             <p>
@@ -1112,7 +1140,7 @@
               ${isOnline ? (dev.wifiRssi !== null ? 'LAN Mode' : 'Cloud Remote') : 'Powered Off'}
             </p>
           </div>
-
+ 
           <div class="card-bottom-bar fading-label">
             <div class="drawer-trigger" onclick="toggleCardDrawer(${index}, event)">
               <i class="fa-solid ${isOpen ? 'fa-chevron-up' : 'fa-brain'}"></i>
@@ -1123,11 +1151,11 @@
             </div>
           </div>
         `;
-
+ 
         const drawer = document.createElement("div");
         drawer.className = `card-dropdown-drawer ${isOpen ? 'open' : ''}`;
         drawer.id = `drawer-${index}`;
-
+ 
         drawer.innerHTML = `
           <div class="form-group">
             <label style="color:var(--accent); font-weight:700;"><i class="fa-solid fa-brain"></i> Mode:</label>
@@ -1142,7 +1170,7 @@
               <option value="wrist" ${currentMode === 'wrist' ? 'selected' : ''}>Gesture: Wrist Flick</option>
             </select>
           </div>
-
+ 
           <div class="mode-subbox" id="flicker-box-${index}" style="display: ${currentMode === 'flicker' ? 'flex' : 'none'};">
             <div class="form-group">
               <label>Strobe Function:</label>
@@ -1152,12 +1180,12 @@
                 <option value="diy-play" ${diySubMode === 'diy-play' ? 'selected' : ''}>Play Saved DIY Pattern</option>
               </select>
             </div>
-
+ 
             <div id="strobe-speed-row-${index}" style="display: ${diySubMode === 'strobe' ? 'flex' : 'none'}; flex-direction:column; gap:4px;">
               <label><span>Cycle Speed</span><b id="strobe-speed-label-${index}">${strobeSpeed} ms</b></label>
               <input type="range" min="100" max="2000" step="50" value="${strobeSpeed}" oninput="updateStrobeSpeed(${index}, this.value)">
             </div>
-
+ 
             <div id="diy-record-row-${index}" style="display: ${diySubMode === 'diy-record' ? 'flex' : 'none'}; flex-direction:column; gap:6px;">
               <div class="btn-diy-pad" id="btn-diy-pad-${index}" 
                 onmousedown="diyPadDown(${index})" onmouseup="diyPadUp(${index})"
@@ -1168,7 +1196,7 @@
                 Hold pad = Light ON | Release = Light OFF
               </span>
             </div>
-
+ 
             <div id="diy-play-row-${index}" style="display: ${diySubMode === 'diy-play' ? 'flex' : 'none'}; flex-direction:column; gap:6px;">
               <select id="select-pattern-${index}">
                 ${renderPatternOptions()}
@@ -1178,11 +1206,11 @@
               </button>
             </div>
           </div>
-
+ 
           <div class="mode-subbox" id="tilt-box-${index}" style="display: ${currentMode === 'tilt' ? 'flex' : 'none'};">
             <label><span>Sensitivity</span><b id="tilt-angle-label-${index}">${tiltConfig.threshold}°</b></label>
             <input type="range" min="8" max="45" value="${tiltConfig.threshold}" oninput="updateTiltThreshold(${index}, this.value)">
-
+ 
             <div class="form-group">
               <label>Behavior:</label>
               <select onchange="updateTiltActionType(this.value)">
@@ -1190,7 +1218,7 @@
                 <option value="toggle" ${tiltConfig.actionType === 'toggle' ? 'selected' : ''}>Tilt = Toggle | Flat = None</option>
               </select>
             </div>
-
+ 
             <label><b>8-Direction Room Map:</b></label>
             <div class="compass-matrix" id="matrix-${index}">
               <div class="matrix-node" id="node-NW"><span class="matrix-title">NW</span>${renderDeviceSelector('NW')}</div>
@@ -1204,17 +1232,17 @@
               <div class="matrix-node" id="node-SE"><span class="matrix-title">SE</span>${renderDeviceSelector('SE')}</div>
             </div>
           </div>
-
+ 
           <div class="mode-subbox" id="prox-box-${index}" style="display: ${currentMode === 'auto-proximity' ? 'flex' : 'none'};">
             <label><span>Presence Range</span><b>${dev.proximityThreshold || 65} ms</b></label>
             <input type="range" min="20" max="220" value="${dev.proximityThreshold || 65}" oninput="updateProximityVal(${index}, this.value)">
           </div>
-
+ 
           <div class="mode-subbox" id="voice-box-${index}" style="display: ${currentMode === 'voice-custom' ? 'flex' : 'none'};">
             <div class="form-group"><label>ON:</label><input type="text" value="${dev.voiceOn || 'light on'}" oninput="updateVoicePhrase(${index}, 'on', this.value)"></div>
             <div class="form-group"><label>OFF:</label><input type="text" value="${dev.voiceOff || 'light off'}" oninput="updateVoicePhrase(${index}, 'off', this.value)"></div>
           </div>
-
+ 
           <div class="mode-subbox" id="clap-box-${index}" style="display: ${currentMode === 'trained-clap' ? 'flex' : 'none'};">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span style="font-size:0.68rem; font-weight:600;">Hand Profile:</span>
@@ -1232,53 +1260,53 @@
             </div>
             <div class="meter-container"><div class="meter-bar" id="meter-bar-${index}"></div></div>
           </div>
-
+ 
           <div class="sensor-feedback" id="feedback-${index}" style="display: ${currentMode !== 'none' ? 'flex' : 'none'};">
             <i class="fa-solid fa-satellite-dish"></i> <span id="feedback-text-${index}">Active</span>
           </div>
         `;
-
+ 
         cardWrapper.appendChild(card);
         cardWrapper.appendChild(drawer);
         list.appendChild(cardWrapper);
       });
-
+ 
       resetIdleTimer();
     }
-
+ 
     // --- STROBE & DIY PATTERN CONTROLLERS ---
     function updateDiySubMode(index, mode) {
       devices[index].diySubMode = mode;
       saveState();
-
+ 
       if (strobeTimers[index]) { clearInterval(strobeTimers[index]); delete strobeTimers[index]; }
       if (diyPlayTimers[index]) { clearTimeout(diyPlayTimers[index]); delete diyPlayTimers[index]; }
-
+ 
       const speedRow = document.getElementById(`strobe-speed-row-${index}`);
       const recordRow = document.getElementById(`diy-record-row-${index}`);
       const playRow = document.getElementById(`diy-play-row-${index}`);
-
+ 
       if (speedRow) speedRow.style.display = mode === 'strobe' ? 'flex' : 'none';
       if (recordRow) recordRow.style.display = mode === 'diy-record' ? 'flex' : 'none';
       if (playRow) playRow.style.display = mode === 'diy-play' ? 'flex' : 'none';
-
+ 
       if (mode === 'strobe') {
         startStrobeLoop(index);
       }
     }
-
+ 
     function updateStrobeSpeed(index, speedVal) {
       const speed = parseInt(speedVal, 10);
       devices[index].strobeSpeed = speed;
       const lbl = document.getElementById(`strobe-speed-label-${index}`);
       if (lbl) lbl.innerText = `${speed} ms`;
       saveState();
-
+ 
       if (devices[index].mode === 'flicker' && (devices[index].diySubMode || 'strobe') === 'strobe') {
         startStrobeLoop(index);
       }
     }
-
+ 
     function startStrobeLoop(index) {
       if (strobeTimers[index]) clearInterval(strobeTimers[index]);
       const speed = devices[index].strobeSpeed || 500;
@@ -1288,7 +1316,7 @@
         quietSendCommand(index, state);
       }, speed);
     }
-
+ 
     function diyPadDown(index, e) {
       if (e) e.preventDefault();
       const pad = document.getElementById(`btn-diy-pad-${index}`);
@@ -1297,17 +1325,17 @@
         pad.classList.add("pressing");
         pad.classList.add("recording");
       }
-
+ 
       const now = Date.now();
       clearTimeout(diyRecordState.silenceTimeout);
-
+ 
       if (!diyRecordState.isRecording) {
         diyRecordState.isRecording = true;
         diyRecordState.startTime = now;
         diyRecordState.lastActionTime = now;
         diyRecordState.pattern = [];
         if (statusLbl) statusLbl.innerText = "● Recording... (Max 20s)";
-
+ 
         setTimeout(() => {
           if (diyRecordState.isRecording) finishDiyRecording(index);
         }, 20000);
@@ -1316,44 +1344,44 @@
         diyRecordState.pattern.push({ state: 0, duration: offDuration });
         diyRecordState.lastActionTime = now;
       }
-
+ 
       quietSendCommand(index, true);
     }
-
+ 
     function diyPadUp(index, e) {
       if (e) e.preventDefault();
       const pad = document.getElementById(`btn-diy-pad-${index}`);
       const statusLbl = document.getElementById(`diy-record-status-${index}`);
       if (pad) pad.classList.remove("pressing");
-
+ 
       if (!diyRecordState.isRecording) return;
-
+ 
       const now = Date.now();
       const onDuration = now - diyRecordState.lastActionTime;
       diyRecordState.pattern.push({ state: 1, duration: onDuration });
       diyRecordState.lastActionTime = now;
-
+ 
       quietSendCommand(index, false);
-
+ 
       if (statusLbl) statusLbl.innerText = "Release for 3s to auto-save...";
-
+ 
       diyRecordState.silenceTimeout = setTimeout(() => {
         finishDiyRecording(index);
       }, 3000);
     }
-
+ 
     function finishDiyRecording(index) {
       if (!diyRecordState.isRecording) return;
       diyRecordState.isRecording = false;
       clearTimeout(diyRecordState.silenceTimeout);
-
+ 
       const pad = document.getElementById(`btn-diy-pad-${index}`);
       const statusLbl = document.getElementById(`diy-record-status-${index}`);
       if (pad) {
         pad.classList.remove("recording");
         pad.classList.remove("pressing");
       }
-
+ 
       if (diyRecordState.pattern.length > 0) {
         const patternName = `Pattern ${savedDiyPatterns.length + 1} (${Math.round((Date.now() - diyRecordState.startTime) / 1000)}s)`;
         savedDiyPatterns.push({
@@ -1362,23 +1390,23 @@
           events: diyRecordState.pattern
         });
         saveState();
-
+ 
         if (statusLbl) statusLbl.innerText = `✓ Saved: ${patternName}`;
-
+ 
         const sel = document.getElementById(`select-pattern-${index}`);
         if (sel) sel.innerHTML = renderPatternOptions();
       } else {
         if (statusLbl) statusLbl.innerText = "Nothing recorded.";
       }
     }
-
+ 
     function renderPatternOptions() {
       if (savedDiyPatterns.length === 0) {
         return `<option value="">-- No Patterns Saved --</option>`;
       }
       return savedDiyPatterns.map((p, i) => `<option value="${i}">${p.name}</option>`).join("");
     }
-
+ 
     function togglePlayPattern(index) {
       const lbl = document.getElementById(`btn-play-lbl-${index}`);
       if (diyPlayTimers[index]) {
@@ -1388,29 +1416,29 @@
         if (lbl) lbl.innerText = "Loop Pattern";
         return;
       }
-
+ 
       const sel = document.getElementById(`select-pattern-${index}`);
       const patternIdx = sel ? parseInt(sel.value, 10) : 0;
       if (isNaN(patternIdx) || !savedDiyPatterns[patternIdx]) {
         alert("Please record a pattern first.");
         return;
       }
-
+ 
       if (lbl) lbl.innerText = "Stop Playing";
       playPatternLoop(index, savedDiyPatterns[patternIdx].events, 0);
     }
-
+ 
     function playPatternLoop(index, events, step) {
       if (step >= events.length) step = 0;
-
+ 
       const current = events[step];
       quietSendCommand(index, current.state === 1);
-
+ 
       diyPlayTimers[index] = setTimeout(() => {
         playPatternLoop(index, events, step + 1);
       }, current.duration);
     }
-
+ 
     function renderDeviceSelector(dir) {
       const assignedTarget = tiltConfig.mappings[dir];
       let opts = `<option value="">--</option>`;
@@ -1420,64 +1448,64 @@
       });
       return `<select onchange="updateTiltMapping('${dir}', this.value)">${opts}</select>`;
     }
-
+ 
     function updateTiltMapping(dir, identifier) {
       tiltConfig.mappings[dir] = identifier || null;
       saveState();
     }
-
+ 
     function updateTiltThreshold(index, val) {
       tiltConfig.threshold = parseInt(val, 10);
       const lbl = document.getElementById(`tilt-angle-label-${index}`);
       if (lbl) lbl.innerText = `${val}°`;
       saveState();
     }
-
+ 
     function updateTiltActionType(val) {
       tiltConfig.actionType = val;
       saveState();
     }
-
+ 
     function updateProximityVal(index, val) {
       devices[index].proximityThreshold = parseInt(val, 10);
       saveState();
     }
-
+ 
     function updateVoicePhrase(index, type, text) {
       if (type === 'on') devices[index].voiceOn = text.trim().toLowerCase();
       if (type === 'off') devices[index].voiceOff = text.trim().toLowerCase();
       saveState();
     }
-
+ 
     function updateClapCadence(index, val) {
       devices[index].clapCadence = val;
       saveState();
     }
-
+ 
     // 3D Tilt Calibration & Orientation Engine
     let calibratedPitch = 0;
     let calibratedRoll = 0;
-
+ 
     function initTiltEngine() {
       window.addEventListener("deviceorientation", handleDeviceTilt, true);
     }
-
+ 
     function handleDeviceTilt(e) {
       const gamma = e.gamma;
       const beta = e.beta;
       if (gamma === null || beta === null) return;
-
+ 
       const threshold = tiltConfig.threshold || 16;
       const deltaX = gamma - calibratedRoll;
       const deltaY = beta - calibratedPitch;
       const magnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
+ 
       let detectedSector = null;
-
+ 
       if (magnitude >= threshold) {
         let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
         if (angle < 0) angle += 360;
-
+ 
         if (angle >= 337.5 || angle < 22.5) detectedSector = "E";
         else if (angle >= 22.5 && angle < 67.5) detectedSector = "SE";
         else if (angle >= 67.5 && angle < 112.5) detectedSector = "S";
@@ -1487,7 +1515,7 @@
         else if (angle >= 247.5 && angle < 292.5) detectedSector = "N";
         else if (angle >= 292.5 && angle < 337.5) detectedSector = "NE";
       }
-
+ 
       document.querySelectorAll('.matrix-node').forEach(n => n.classList.remove('active-direction'));
       if (detectedSector) {
         const node = document.getElementById(`node-${detectedSector}`);
@@ -1496,9 +1524,9 @@
         const centerNode = document.getElementById('node-CENTER');
         if (centerNode) centerNode.classList.add('active-direction');
       }
-
+ 
       const now = Date.now();
-
+ 
       if (tiltConfig.actionType === "toggleOnOff") {
         if (detectedSector !== currentTiltActiveSector) {
           if (currentTiltActiveSector && tiltConfig.mappings[currentTiltActiveSector]) {
@@ -1508,7 +1536,7 @@
               sendCommand(prevIdx, false);
             }
           }
-
+ 
           if (detectedSector && tiltConfig.mappings[detectedSector]) {
             const targetIdentifier = tiltConfig.mappings[detectedSector];
             const targetIdx = devices.findIndex(d => (d.id && d.id === targetIdentifier) || d.ip === targetIdentifier);
@@ -1535,11 +1563,11 @@
         }
       }
     }
-
+ 
     async function handleModeChange(index, mode) {
       devices[index].mode = mode;
       saveState();
-
+ 
       if (animFrame) cancelAnimationFrame(animFrame);
       isTrainingClap = false;
       if (voiceRecognizer) {
@@ -1551,7 +1579,7 @@
       
       if (strobeTimers[index]) { clearInterval(strobeTimers[index]); delete strobeTimers[index]; }
       if (diyPlayTimers[index]) { clearTimeout(diyPlayTimers[index]); delete diyPlayTimers[index]; }
-
+ 
       const feedback = document.getElementById(`feedback-${index}`);
       const feedbackText = document.getElementById(`feedback-text-${index}`);
       const tiltBox = document.getElementById(`tilt-box-${index}`);
@@ -1559,57 +1587,57 @@
       const voiceBox = document.getElementById(`voice-box-${index}`);
       const clapBox = document.getElementById(`clap-box-${index}`);
       const flickerBox = document.getElementById(`flicker-box-${index}`);
-
+ 
       if (tiltBox) tiltBox.style.display = mode === 'tilt' ? 'flex' : 'none';
       if (proxBox) proxBox.style.display = mode === 'auto-proximity' ? 'flex' : 'none';
       if (voiceBox) voiceBox.style.display = mode === 'voice-custom' ? 'flex' : 'none';
       if (clapBox) clapBox.style.display = mode === 'trained-clap' ? 'flex' : 'none';
       if (flickerBox) flickerBox.style.display = mode === 'flicker' ? 'flex' : 'none';
-
+ 
       if (mode === "none") {
         if (feedback) feedback.style.display = "none";
         return;
       }
       if (feedback) feedback.style.display = "flex";
-
+ 
       if (mode === "flicker") {
         feedbackText.innerText = "Auto-Strobe / DIY Mode Ready";
         updateDiySubMode(index, devices[index].diySubMode || 'strobe');
       }
-
+ 
       else if (mode === "tilt") {
         feedbackText.innerText = "Tilt in 8 directions to control lights.";
         initTiltEngine();
       }
-
+ 
       else if (mode === "voice-custom") {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) {
           feedbackText.innerText = "Speech not supported.";
           return;
         }
-
+ 
         voiceRecognizer = new SpeechRec();
         voiceRecognizer.continuous = true;
         voiceRecognizer.interimResults = false;
         voiceRecognizer.lang = 'en-IN';
-
+ 
         feedbackText.innerHTML = `Say "${devices[index].voiceOn || 'light on'}" / "${devices[index].voiceOff || 'light off'}"`;
-
+ 
         voiceRecognizer.onresult = (evt) => {
           const heard = evt.results[evt.results.length - 1][0].transcript.toLowerCase().trim();
           feedbackText.innerHTML = `Heard: "${heard}"`;
-
+ 
           const targetOn = (devices[index].voiceOn || "light on").toLowerCase();
           const targetOff = (devices[index].voiceOff || "light off").toLowerCase();
-
+ 
           if (heard.includes(targetOn)) {
             sendCommand(index, true);
           } else if (heard.includes(targetOff)) {
             sendCommand(index, false);
           }
         };
-
+ 
         voiceRecognizer.onend = () => {
           if (devices[index].mode === "voice-custom") {
             try { voiceRecognizer.start(); } catch(e) {}
@@ -1617,7 +1645,7 @@
         };
         try { voiceRecognizer.start(); } catch(e) {}
       }
-
+ 
       else if (mode === "trained-clap") {
         const profile = devices[index].clapProfile;
         const cadence = devices[index].clapCadence || "single";
@@ -1625,32 +1653,32 @@
           feedbackText.innerText = "Record 5 claps below.";
           return;
         }
-
+ 
         await initAudio();
         feedbackText.innerText = `Listening for ${cadence === 'double' ? 'Double' : 'Single'} Clap...`;
-
+ 
         const timeData = new Uint8Array(analyser.fftSize);
         const freqData = new Uint8Array(analyser.frequencyBinCount);
         let armed = true;
         let lastTrigger = 0;
         let firstClapTime = 0;
         let isWaitingForSecond = false;
-
+ 
         function matchLoop() {
           analyser.getByteTimeDomainData(timeData);
           analyser.getByteFrequencyData(freqData);
-
+ 
           const fp = extractFingerprint(freqData, timeData);
           const matchScore = (fp.peak > 14 && fp.crest > 2.5) ? computeCosineSimilarity(fp.bands, profile) : 0;
-
+ 
           const meterBar = document.getElementById(`meter-bar-${index}`);
           if (meterBar) {
             meterBar.style.width = `${Math.min(100, Math.round((fp.peak / 45) * 100))}%`;
           }
-
+ 
           const now = Date.now();
           const isPersonalClap = matchScore > 0.72 && fp.crest > 2.8;
-
+ 
           if (isPersonalClap && armed) {
             if (cadence === "single") {
               if (now - lastTrigger > 1200) {
@@ -1678,17 +1706,17 @@
               }
             }
           }
-
+ 
           if (isWaitingForSecond && (now - firstClapTime > 800)) {
             isWaitingForSecond = false;
             armed = true;
           }
-
+ 
           animFrame = requestAnimationFrame(matchLoop);
         }
         matchLoop();
       }
-
+ 
       else if (mode === "shake") {
         feedbackText.innerText = "Shake phone vigorously to toggle.";
         let lastShake = 0;
@@ -1702,7 +1730,7 @@
           }
         };
       }
-
+ 
       else if (mode === "wrist") {
         feedbackText.innerText = "Flick phone wrist laterally to toggle.";
         let lastFlick = 0;
@@ -1717,26 +1745,26 @@
         };
       }
     }
-
+ 
     // --- HYBRID DUAL-ROUTING ENGINE (LAN FIRST -> CLOUD MQTT FALLBACK) ---
-
+ 
     async function handleToggleClick(index, checkboxElem) {
       const dev = devices[index];
       const targetState = checkboxElem.checked;
       checkboxElem.checked = dev.state;
-
+ 
       if (dev.isOnline === false && !isMqttConnected) {
         alert(`Cannot toggle: "${dev.name}" is powered off.`);
         return;
       }
-
+ 
       dev._isVerifying = true;
       render();
-
+ 
       // 1. PRIMARY: Fast LAN HTTP probe (280ms timeout)
       const lanController = new AbortController();
       const lanTimer = setTimeout(() => lanController.abort(), 280);
-
+ 
       try {
         const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
           method: 'GET',
@@ -1744,7 +1772,7 @@
           signal: lanController.signal
         });
         clearTimeout(lanTimer);
-
+ 
         if (res.ok) {
           dev.state = targetState;
           dev.isOnline = true;
@@ -1757,7 +1785,7 @@
       } catch (err) {
         clearTimeout(lanTimer);
       }
-
+ 
       // 2. SECONDARY: Oracle Cloud MQTT Fallback (Targeting Permanent MAC ID)
       if (isMqttConnected) {
         const published = publishDeviceState(dev, targetState);
@@ -1771,32 +1799,32 @@
           return;
         }
       }
-
+ 
       dev._isVerifying = false;
       dev.isOnline = false;
       saveState();
       render();
       alert(`⚠️ Could not reach "${dev.name}". Check hardware power.`);
     }
-
+ 
     function toggleDevice(index) {
       const dev = devices[index];
       if (dev && (dev.isOnline !== false || isMqttConnected)) {
         sendCommand(index, !dev.state);
       }
     }
-
+ 
     async function sendCommand(index, targetState) {
       const dev = devices[index];
       if (!dev) return;
-
+ 
       dev._isVerifying = true;
       render();
-
+ 
       // 1. PRIMARY: Fast LAN (280ms timeout)
       const lanController = new AbortController();
       const lanTimer = setTimeout(() => lanController.abort(), 280);
-
+ 
       try {
         const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
           method: 'GET',
@@ -1804,7 +1832,7 @@
           signal: lanController.signal
         });
         clearTimeout(lanTimer);
-
+ 
         if (res.ok) {
           dev.state = targetState;
           dev.isOnline = true;
@@ -1817,7 +1845,7 @@
       } catch (e) {
         clearTimeout(lanTimer);
       }
-
+ 
       // 2. SECONDARY: Oracle Cloud MQTT Fallback
       if (isMqttConnected) {
         const published = publishDeviceState(dev, targetState);
@@ -1831,32 +1859,32 @@
           return;
         }
       }
-
+ 
       dev._isVerifying = false;
       dev.isOnline = false;
       saveState();
       render();
     }
-
+ 
     async function quietSendCommand(index, targetState) {
       const dev = devices[index];
       if (!dev) return;
-
+ 
       dev.state = targetState;
-
+ 
       const chk = document.getElementById(`toggle-input-${index}`);
       if (chk) chk.checked = targetState;
-
+ 
       const icon = document.getElementById(`icon-box-${index}`);
       if (icon) {
         if (targetState) icon.classList.add("active");
         else icon.classList.remove("active");
       }
-
+ 
       // 1. Fast LAN (180ms timeout for high-frequency rhythm/strobe)
       const lanController = new AbortController();
       const lanTimer = setTimeout(() => lanController.abort(), 180);
-
+ 
       try {
         const res = await fetch(`http://${dev.ip}/toggle?state=${targetState ? 1 : 0}&k=${NARI_AUTH_TOKEN}`, {
           method: 'GET',
@@ -1868,20 +1896,20 @@
       } catch (e) {
         clearTimeout(lanTimer);
       }
-
+ 
       // 2. Fallback to Cloud MQTT
       if (isMqttConnected) {
         publishDeviceState(dev, targetState);
       }
     }
-
+ 
     function triggerEditOption(index, e) {
       if (e) { e.preventDefault(); e.stopPropagation(); }
       document.querySelectorAll('.btn-edit-revealed').forEach(el => el.style.display = 'none');
       const btn = document.getElementById(`btn-edit-${index}`);
       if (btn) btn.style.display = 'block';
     }
-
+ 
     function toggleEditDropdown(index, e) {
       e.stopPropagation();
       const menu = document.getElementById(`edit-menu-${index}`);
@@ -1889,7 +1917,7 @@
       document.querySelectorAll('.edit-dropdown').forEach(el => el.classList.remove('show'));
       if (!isVisible) menu.classList.add('show');
     }
-
+ 
     function openBulbModal(index, e) {
       e.stopPropagation();
       activeDeviceIndex = index;
@@ -1901,34 +1929,34 @@
       document.getElementById("bulbSettingsModal").style.display = "flex";
     }
     function closeBulbModal() { document.getElementById("bulbSettingsModal").style.display = "none"; }
-
+ 
     async function saveBulbSettings() {
       if (activeDeviceIndex === null) return;
       const dev = devices[activeDeviceIndex];
       const newName = document.getElementById("modalDevName").value.trim();
       const newBoot = document.getElementById("modalBootState").value;
       const newPhoto = document.getElementById("cardPhotoUrl").value.trim();
-
+ 
       if (newName) dev.name = newName;
       dev.bootState = newBoot;
       dev.bgPhoto = newPhoto || dev.bgPhoto;
-
+ 
       // LAN first
       try {
         fetch(`http://${dev.ip}/setBootState?mode=${newBoot}&k=${NARI_AUTH_TOKEN}`, { mode: 'cors' }).catch(() => {});
       } catch (e) {}
-
+ 
       // Cloud MQTT sync targeting permanent MAC ID
       if (isMqttConnected) {
         const targetId = dev.id || (dev.ip || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
         mqttClient.publish(`nari/${targetId}/config/boot`, newBoot, { retain: true });
       }
-
+ 
       saveState();
       render();
       closeBulbModal();
     }
-
+ 
     function handlePhotoUpload(e) {
       const file = e.target.files[0];
       if (!file || activeDeviceIndex === null) return;
@@ -1938,7 +1966,7 @@
       };
       reader.readAsDataURL(file);
     }
-
+ 
     function clearCardPhoto() {
       if (activeDeviceIndex === null) return;
       devices[activeDeviceIndex].bgPhoto = null;
@@ -1946,7 +1974,7 @@
       saveState();
       render();
     }
-
+ 
     async function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -1959,7 +1987,7 @@
         source.connect(analyser);
       }
     }
-
+ 
     function extractFingerprint(freqData, timeData) {
       let peak = 0, sumSq = 0;
       for (let i = 0; i < timeData.length; i++) {
@@ -1969,7 +1997,7 @@
       }
       const rms = Math.sqrt(sumSq / timeData.length) || 1;
       const crest = peak / rms;
-
+ 
       const bands = new Float32Array(16);
       let totalMag = 0;
       for (let b = 0; b < 16; b++) {
@@ -1983,7 +2011,7 @@
       }
       return { bands, crest, peak };
     }
-
+ 
     function computeCosineSimilarity(vecA, vecB) {
       let dot = 0, normA = 0, normB = 0;
       for (let i = 0; i < vecA.length; i++) {
@@ -1994,39 +2022,39 @@
       if (normA === 0 || normB === 0) return 0;
       return dot / (Math.sqrt(normA) * Math.sqrt(normB));
     }
-
+ 
     async function startClapTraining(index) {
       await initAudio();
       isTrainingClap = true;
       clapTrainingBuffer = [];
-
+ 
       const btn = document.getElementById(`btn-train-clap-${index}`);
       const feedbackText = document.getElementById(`feedback-text-${index}`);
       const meterBar = document.getElementById(`meter-bar-${index}`);
-
+ 
       btn.classList.add("listening");
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Clap 1 of 5...`;
       feedbackText.innerText = "Listening for personal clap 1...";
-
+ 
       const timeData = new Uint8Array(analyser.fftSize);
       const freqData = new Uint8Array(analyser.frequencyBinCount);
       let armed = true;
-
+ 
       const trainLoop = () => {
         if (!isTrainingClap) return;
         analyser.getByteTimeDomainData(timeData);
         analyser.getByteFrequencyData(freqData);
-
+ 
         const fp = extractFingerprint(freqData, timeData);
         if (meterBar) {
           meterBar.style.width = `${Math.min(100, Math.round((fp.peak / 45) * 100))}%`;
         }
-
+ 
         if (fp.peak > 14 && fp.crest > 2.5 && armed) {
           armed = false;
           clapTrainingBuffer.push(Array.from(fp.bands));
           const count = clapTrainingBuffer.length;
-
+ 
           if (count < 5) {
             btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Clap ${count + 1} of 5...`;
             feedbackText.innerText = `Recorded ${count}! Clap again...`;
@@ -2036,10 +2064,10 @@
               for (let b = 0; b < 16; b++) profile[b] += clapTrainingBuffer[i][b];
             }
             for (let b = 0; b < 16; b++) profile[b] /= 5;
-
+ 
             devices[index].clapProfile = profile;
             saveState();
-
+ 
             isTrainingClap = false;
             btn.classList.remove("listening");
             btn.innerHTML = `<i class="fa-solid fa-hands-clapping"></i> Retrain Claps`;
@@ -2054,7 +2082,7 @@
       };
       trainLoop();
     }
-
+ 
     function deleteDevice(index) {
       if (confirm(`Remove switch "${devices[index].name}"?`)) {
         devices.splice(index, 1);
@@ -2062,7 +2090,7 @@
         render();
       }
     }
-
+ 
     function shareDevice(index) {
       const dev = devices[index];
       const expiry = Date.now() + (10 * 60 * 1000);
@@ -2074,12 +2102,20 @@
         navigator.clipboard.writeText(shareUrl).then(() => alert("10-Minute Share link copied!"));
       }
     }
-
+ 
     // Startup initializers
     initMqttClient();
     checkUrlPairing();
     render();
     pollAllDevices();
   </script>
+  <!-- Optional deployment defaults (git-ignored). A 404 here is harmless. -->
+  <script src="js/config.local.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/transport.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/sensors.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
