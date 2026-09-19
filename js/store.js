@@ -186,4 +186,4 @@
   NARI.store = store;
   NARI.newDevice = newDevice;
   NARI.defaultTriggers = defaultTriggers;
-})(window);"
+})(window);
