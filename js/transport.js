@@ -355,7 +355,7 @@
         if (this.lanBlocked) out.push({ level: "warn", text: "LAN control is blocked by the browser (https page -> http switch). Commands are routed via Cloud. For direct LAN use the Android app wrapper or open the app over http://." });
         else if (s.lanEnabled) out.push({ level: "info", text: "LAN calls from an https page are usually blocked as mixed content; if switches never show 'LAN', rely on Cloud." });
       }
-      if (this.cloudState === "unconfigured") out.push({ level: "warn", text: "Cloud broker not configured. Open Settings and enter your Oracle VM broker (wss://host:9001)." });
+      if (this.cloudState === "unconfigured") out.push({ level: "info", text: "Running in LAN-only mode — switches are controlled directly over your home Wi-Fi. For remote/cloud access, set a broker URL in Settings." });
       if (this.cloudState === "error") out.push({ level: "error", text: `Cloud error: ${this.cloudError || "connection failed"}. Check broker TLS certificate, port 9001 in the Oracle security list and Mosquitto websockets listener.` });
       if (!navigator.onLine) out.push({ level: "error", text: "Phone is offline." });
       return out;

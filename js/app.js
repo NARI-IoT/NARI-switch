@@ -73,8 +73,33 @@
       dom.deviceList.innerHTML = `
         <div class="empty">
           <div class="big"><i class="fa-solid fa-house-signal"></i></div>
-          <h3>No switches found</h3>
-          <p class="small muted">Tap + above to discover switches on your network.</p>
+          <h3>Welcome to NARI Home</h3>
+          <p class="small muted" style="margin-bottom:18px;">Get your smart switch up and running in 3 easy steps.</p>
+          <div class="welcome-guide">
+            <div class="wstep">
+              <span class="wnum">1</span>
+              <div>
+                <b>Power ON the NARI Switch</b>
+                <p>The device creates a Wi-Fi hotspot called <code>NARI-Switch-XXXX</code></p>
+              </div>
+            </div>
+            <div class="wstep">
+              <span class="wnum">2</span>
+              <div>
+                <b>Connect &amp; Configure via Captive Portal</b>
+                <p>Go to <b>Android Wi-Fi Settings</b> &rarr; connect to <code>NARI-Switch-XXXX</code></p>
+                <p class="wpill"><i class="fa-solid fa-key"></i>&nbsp; Password: <code>nariSetup2026</code></p>
+                <p>A setup page opens automatically &rarr; select your home Wi-Fi &rarr; enter password &rarr; Save. The device reboots and joins your network.</p>
+              </div>
+            </div>
+            <div class="wstep">
+              <span class="wnum">3</span>
+              <div>
+                <b>Tap <i class="fa-solid fa-plus"></i> to Scan &amp; Add</b>
+                <p>Reconnect your phone to home Wi-Fi, then tap the <b>+</b> button above to find and add your switch.</p>
+              </div>
+            </div>
+          </div>
         </div>`;
       return;
     }
@@ -304,14 +329,41 @@
   dom.btnAdd.onclick = () => {
     openSheet(`
       <div class="sheet-header">
-        <div>Add Smart Switch<span class="sub">LAN Scanner</span></div>
+        <div>Add New Switch<span class="sub">Setup Guide</span></div>
         <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
       </div>
-      <div class="steps">
-        <div class="step"><div class="num">1</div><div>Ensure your phone and switch are connected to your Wi-Fi network.</div></div>
-        <div class="step"><div class="num">2</div><div>Scan your local subnets to find the device.</div></div>
+
+      <div class="provision-guide">
+        <div class="pstep">
+          <div class="pstep-icon"><i class="fa-solid fa-plug"></i></div>
+          <div class="pstep-body">
+            <b>Step 1 — Power ON the Switch</b>
+            <p>The device broadcasts a <code>NARI-Switch-XXXX</code> Wi-Fi hotspot and is ready for setup.</p>
+          </div>
+        </div>
+        <div class="pstep">
+          <div class="pstep-icon"><i class="fa-solid fa-wifi"></i></div>
+          <div class="pstep-body">
+            <b>Step 2 — Connect to NARI Hotspot</b>
+            <p>Go to <b>Android Wi-Fi Settings</b> &rarr; connect to <code>NARI-Switch-XXXX</code></p>
+            <div class="pkey"><i class="fa-solid fa-key"></i> Password: <code>nariSetup2026</code></div>
+            <p style="margin-top:5px;">A setup page opens automatically &rarr; select your home Wi-Fi &rarr; enter password &rarr; Save. The device reboots and joins your home network.</p>
+          </div>
+        </div>
+        <div class="pstep">
+          <div class="pstep-icon"><i class="fa-solid fa-house-wifi"></i></div>
+          <div class="pstep-body">
+            <b>Step 3 — Rejoin Home Wi-Fi &amp; Scan</b>
+            <p>Switch your phone back to home Wi-Fi, then tap <b>Scan Network</b> below to find your switch.</p>
+          </div>
+        </div>
       </div>
-      <button class="btn primary" id="btnStartScan" onclick="NARI.app.runLanScan()">Scan Subnets</button>
+
+      <div class="scan-divider">All done? Find your switch on the network</div>
+
+      <button class="btn primary" id="btnStartScan" onclick="NARI.app.runLanScan()">
+        <i class="fa-solid fa-magnifying-glass-location"></i>&nbsp; Scan Network
+      </button>
       <div class="progress hidden" id="scanProgress"><div id="scanBar"></div></div>
       <div class="found-list" id="scanResults"></div>
     `);

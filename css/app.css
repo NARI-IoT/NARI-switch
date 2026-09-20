@@ -243,3 +243,23 @@ details[open] summary { margin-bottom: 8px; }
 .fab-install { position: fixed; bottom: 18px; right: 16px; z-index: 40; background: var(--primary); color: #fff; border: none; border-radius: 999px; padding: 10px 14px; font-weight: 700; font-size: 0.78rem; display: none; gap: 8px; align-items: center; box-shadow: var(--shadow); }
 .fab-install.show { display: inline-flex; }
 
+/* ---------------- customer welcome guide (empty state) ---------------- */
+.welcome-guide { display: flex; flex-direction: column; gap: 0; text-align: left; margin-top: 4px; }
+.wstep { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--card-border); }
+.wstep:last-child { border-bottom: none; }
+.wnum { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 0.72rem; font-weight: 800; display: grid; place-items: center; margin-top: 1px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35); }
+.wstep b { font-size: 0.84rem; display: block; margin-bottom: 4px; color: var(--text); }
+.wstep p { font-size: 0.74rem; color: var(--text-muted); line-height: 1.45; margin-top: 3px; }
+.wstep code { background: rgba(52, 211, 153, 0.12); color: var(--accent); border-radius: 5px; padding: 1px 5px; font-size: 0.72rem; font-family: ui-monospace, Menlo, monospace; }
+.wpill { display: inline-flex; align-items: center; gap: 5px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 4px 8px; font-size: 0.71rem; color: #fde68a; margin-top: 4px; }
+
+/* ---------------- provisioning guide (+ modal) ---------------- */
+.provision-guide { display: flex; flex-direction: column; gap: 0; margin-bottom: 14px; border: 1px solid var(--card-border); border-radius: 16px; overflow: hidden; background: rgba(0,0,0,0.15); }
+.pstep { display: flex; gap: 12px; align-items: flex-start; padding: 13px 14px; border-bottom: 1px solid var(--card-border); transition: background 0.2s; }
+.pstep:last-child { border-bottom: none; }
+.pstep-icon { flex: none; width: 34px; height: 34px; border-radius: 50%; background: rgba(52, 211, 153, 0.12); color: var(--accent); display: grid; place-items: center; font-size: 0.95rem; }
+.pstep-body b { font-size: 0.82rem; display: block; margin-bottom: 5px; color: var(--text); }
+.pstep-body p { font-size: 0.74rem; color: var(--text-muted); line-height: 1.45; }
+.pstep-body code { background: rgba(52, 211, 153, 0.12); color: var(--accent); border-radius: 5px; padding: 1px 5px; font-size: 0.72rem; font-family: ui-monospace, Menlo, monospace; }
+.pkey { display: inline-flex; align-items: center; gap: 6px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 4px 9px; font-size: 0.73rem; color: #fde68a; margin: 5px 0; }
+.scan-divider { text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); padding: 10px 0 10px; letter-spacing: 0.3px; }
