@@ -148,8 +148,11 @@
       }
     },
  
-    async loadCloud() {
+    async loadCloud(force = false) {
       if (!this.currentUser || !this.db) return;
+      // ZERO-COST SHIELD: Only read from Firestore if this phone has 0 devices saved (new phone/fresh install)
+      // or if explicitly requested. This prevents burning the 50,000 free daily reads when scaling to 1 Lakh+ customers.
+      if (!force && this.devices.length > 0) return;
       try {
         const doc = await this.db.collection("users").doc(this.currentUser.uid).get();
         if (!doc.exists) { if (this.devices.length) this.save(); return; }
@@ -169,6 +172,7 @@
         }
         this.save();
         bus.emit("devices:changed");
+        if (force) bus.emit("toast", { text: "Cloud sync complete!", level: "ok" });
       } catch (e) { console.error("Cloud fetch failed:", e); }
     }
   };

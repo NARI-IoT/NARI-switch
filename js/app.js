@@ -58,7 +58,7 @@
     </div>`;
 
     if (transport.lanBlocked) {
-      html += `<div class="pill warn"><span class="led"></span>LAN: Mixed Content Blocked</div>`;
+      html += `<div class="pill warn" style="cursor:pointer;" onclick="NARI.app.showLanUnlockModal()" title="Click to see how to enable fast LAN"><span class="led"></span>LAN: Mixed Content Blocked <i class="fa-solid fa-circle-question" style="margin-left:4px;font-size:0.7rem;"></i></div>`;
     } else {
       const lanCount = store.devices.filter(d => transport.lanFresh(d)).length;
       html += `<div class="pill ${lanCount > 0 ? 'ok' : ''}"><span class="led"></span>LAN: ${lanCount} Active</div>`;
@@ -502,18 +502,65 @@
     `);
   };
 
-  // --- Firebase Web Auth Integration ---
+  // --- LAN Mixed-Content Helper ---
+  function showLanUnlockBanner() {
+    if (!dom.banners || document.getElementById("lanUnlockBanner")) return;
+    const b = document.createElement("div");
+    b.className = "banner info";
+    b.id = "lanUnlockBanner";
+    b.innerHTML = `
+      <i class="fa-solid fa-bolt-lightning"></i>
+      <div>
+        <b>Enable Ultra-Fast Local LAN Mode:</b><br>
+        Your browser blocks direct local Wi-Fi from HTTPS sites by default.
+        <a href="javascript:void(0)" onclick="NARI.app.showLanUnlockModal()" style="display:inline-block;margin-top:4px;">Learn how to unlock in 1 tap &rarr;</a>
+      </div>
+      <button class="close" onclick="this.parentElement.remove()">✕</button>
+    `;
+    dom.banners.appendChild(b);
+  }
+  bus.on("lan:blocked", showLanUnlockBanner);
+
+  NARI.app.showLanUnlockModal = () => {
+    openSheet(`
+      <div class="sheet-header">
+        <div>Enable Fast LAN Mode<span class="sub">1-Tap Browser Setting</span></div>
+        <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
+      </div>
+      <div style="font-size:0.86rem;line-height:1.5;color:var(--text);">
+        <p>Because this app runs over secure <b>HTTPS</b> (GitHub Pages), browsers block background calls to local <code>http://192.168.x.x</code> switches by default.</p>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px;margin:14px 0;">
+          <b style="color:var(--brand);display:block;margin-bottom:8px;"><i class="fa-brands fa-chrome"></i> For Chrome / Android / Edge:</b>
+          <ol style="margin-left:18px;margin-bottom:0;">
+            <li>Tap the <b>🔒 lock / tuning</b> icon in your browser's address bar.</li>
+            <li>Tap <b>Permissions</b> or <b>Site settings</b>.</li>
+            <li>Find <b>Insecure content</b> &rarr; change it to <b>Allow</b>.</li>
+            <li>Reload the page &mdash; direct LAN mode is now permanently active!</li>
+          </ol>
+        </div>
+        <div class="small muted" style="margin-top:10px;">
+          <i class="fa-solid fa-cloud"></i> <b>Don't want to change settings?</b> No problem! The app communicates seamlessly with all your switches via Oracle Cloud MQTT.
+        </div>
+      </div>
+    `);
+  };
+
+  // --- Firebase Web Auth Integration (Zero-Cost Shield) ---
   if (store.auth) {
     store.auth.onAuthStateChanged(user => {
       store.currentUser = user;
       if (user) {
         dom.authContainer.innerHTML = `
-          <button class="btn-auth" onclick="NARI.app.signOut()">
+          <button class="btn-auth" onclick="NARI.app.openUserMenu()" title="Account & Sync">
             <img class="user-avatar" src="${user.photoURL || 'https://via.placeholder.com/20'}" alt="">
             <span>${(user.displayName || user.email || 'User').split(' ')[0]}</span>
           </button>
         `;
-        store.loadCloud();
+        // ZERO-COST SHIELD: Only read from Firestore if this phone has 0 devices saved (brand new phone/login)
+        // Existing customers load instantly from phone storage with 0 Firebase read charges.
+        if (store.devices.length === 0) {
+          store.loadCloud();
+        }
       } else {
         dom.authContainer.innerHTML = `
           <button class="btn-auth" id="btnLogin" onclick="NARI.app.signIn()">
@@ -523,6 +570,36 @@
       }
     });
   }
+
+  NARI.app.openUserMenu = () => {
+    const user = store.currentUser;
+    if (!user) return;
+    openSheet(`
+      <div class="sheet-header">
+        <div>Account &amp; Sync<span class="sub">${user.email || 'Google Account'}</span></div>
+        <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px;background:rgba(255,255,255,0.05);border-radius:12px;">
+        <img src="${user.photoURL || 'https://via.placeholder.com/48'}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;">
+        <div>
+          <b style="display:block;">${user.displayName || 'User'}</b>
+          <span class="small muted">${user.email}</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button class="btn secondary" onclick="store.loadCloud(true); NARI.app.closeSheet();">
+          <i class="fa-solid fa-arrows-rotate"></i> Sync Switches from Cloud
+        </button>
+        <button class="btn secondary" onclick="store.save(); showToast('Saved to Cloud', 'ok'); NARI.app.closeSheet();">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Backup to Cloud Now
+        </button>
+        <button class="btn" style="background:rgba(239,68,68,0.18);color:#fca5a5;margin-top:6px;" onclick="NARI.app.signOut(); NARI.app.closeSheet();">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out
+        </button>
+      </div>
+    `);
+  };
+
   NARI.app.signIn = () => store.auth && store.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => showToast(e.message, "error"));
   NARI.app.signOut = () => store.auth && store.auth.signOut();
 
