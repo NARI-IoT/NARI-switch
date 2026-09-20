@@ -359,14 +359,46 @@
         </div>
       </div>
 
-      <div class="scan-divider">All done? Find your switch on the network</div>
+      <div class="scan-divider">Already know the device IP? Add it instantly</div>
 
-      <button class="btn primary" id="btnStartScan" onclick="NARI.app.runLanScan()">
+      <div class="manual-ip-row">
+        <input type="text" id="manualIp" placeholder="e.g. 192.168.1.10" inputmode="decimal"
+               onkeydown="if(event.key==='Enter') NARI.app.addByIp()">
+        <button class="btn primary sm" onclick="NARI.app.addByIp()">
+          <i class="fa-solid fa-plus"></i> Add
+        </button>
+      </div>
+      <div id="manualIpStatus" class="small muted" style="margin-bottom:6px;min-height:18px;"></div>
+
+      <div class="scan-divider">Or scan automatically</div>
+
+      <button class="btn secondary" id="btnStartScan" onclick="NARI.app.runLanScan()">
         <i class="fa-solid fa-magnifying-glass-location"></i>&nbsp; Scan Network
       </button>
       <div class="progress hidden" id="scanProgress"><div id="scanBar"></div></div>
       <div class="found-list" id="scanResults"></div>
     `);
+  };
+
+  NARI.app.addByIp = async () => {
+    const input = document.getElementById("manualIp");
+    const status = document.getElementById("manualIpStatus");
+    const ip = (input.value || "").trim();
+    if (!ip) { status.textContent = "Enter an IP address first."; return; }
+    status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Connecting to ${ip}...`;
+    const data = await transport.probeIp(ip, 2000);
+    if (!data) {
+      status.innerHTML = `<span style="color:var(--danger)"><i class="fa-solid fa-circle-xmark"></i> No response from ${ip}. Check IP and auth token.</span>`;
+      return;
+    }
+    if (store.exists(data.id, ip)) {
+      status.innerHTML = `<span style="color:var(--warn)"><i class="fa-solid fa-triangle-exclamation"></i> Device already added.</span>`;
+      return;
+    }
+    store.add({ name: `Switch ${store.devices.length + 1}`, ip, id: data.id });
+    renderDeviceCards();
+    closeSheet();
+    showToast(`✅ ${data.id} added at ${ip}`, "ok");
   };
 
   NARI.app.runLanScan = async () => {
@@ -386,7 +418,10 @@
     btn.disabled = false;
 
     if (!found.length) {
-      res.innerHTML = `<div class="small muted" style="text-align:center;">No switches responded. Verify your Subnets in Settings.</div>`;
+      res.innerHTML = `<div class="small muted" style="text-align:center;padding:10px 0;">
+        No switches found on scan.<br>Try entering the IP manually above (e.g. <b>192.168.1.10</b>)
+        or check Subnets in <b>⚙ Settings</b>.
+      </div>`;
       return;
     }
 

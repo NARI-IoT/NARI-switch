@@ -316,31 +316,70 @@
     // ---------------- discovery ----------------
     async probeIp(ip, timeoutMs) {
       try {
-        const text = await this.lanFetch(`http://${ip}/ping?k=${encodeURIComponent(NARI.settings.lanToken)}`, timeoutMs || 900);
+        const text = await this.lanFetch(`http://${ip}/ping?k=${encodeURIComponent(NARI.settings.lanToken)}`, timeoutMs || 1200);
         const data = safeJson(text) || {};
         if (!data.id && typeof data.rssi !== "number") return null;
         return { ip, id: data.id || "", rssi: data.rssi, fw: data.fw, state: data.state };
       } catch (e) { return null; }
     },
- 
-    /** Scan the configured subnets. onProgress(pct, text). Resolves with the list of newly found switches. */
+
+    /** Detect browser's local LAN subnet via WebRTC (e.g. "192.168.1").
+     *  Returns null if WebRTC unavailable or times out. */
+    async _detectLocalSubnet() {
+      return new Promise(resolve => {
+        try {
+          const pc = new RTCPeerConnection({ iceServers: [] });
+          pc.createDataChannel("");
+          const timer = setTimeout(() => { try { pc.close(); } catch(e){} resolve(null); }, 1500);
+          pc.onicecandidate = (ice) => {
+            if (!ice || !ice.candidate || !ice.candidate.candidate) return;
+            // Match an IPv4 LAN address (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+            const m = ice.candidate.candidate.match(
+              /(\b(?:192\.168|10\.\d+|172\.(?:1[6-9]|2\d|3[01]))\.\d+)\.\d+\b/
+            );
+            if (m) {
+              clearTimeout(timer);
+              try { pc.close(); } catch(e) {}
+              resolve(m[1]); // e.g. "192.168.1"
+            }
+          };
+          pc.createOffer().then(o => pc.setLocalDescription(o)).catch(() => resolve(null));
+        } catch(e) { resolve(null); }
+      });
+    },
+
+    /** Scan LAN for NARI switches.
+     *  Auto-detects the correct subnet via WebRTC first — customers never need to configure anything.
+     *  Falls back to the configured subnet list if auto-detect fails. */
     async scanLan(onProgress) {
-      const subnets = (NARI.settings.lanScanSubnets || "").split(",").map(s => s.trim()).filter(Boolean);
       const found = [];
       NARI.isScanning = true;
       try {
+        // 1. Auto-detect the browser's own subnet — always the right one
+        onProgress && onProgress(0, "Detecting your network...");
+        const autoSubnet = await this._detectLocalSubnet();
+
+        // 2. Build the subnet list: auto-detected first, then configured fallbacks (deduped)
+        const configured = (NARI.settings.lanScanSubnets || "").split(",").map(s => s.trim()).filter(Boolean);
+        const subnets = autoSubnet
+          ? [autoSubnet, ...configured.filter(s => s !== autoSubnet)]
+          : configured;
+
         const total = subnets.length * 254;
         let done = 0;
+
         for (const prefix of subnets) {
+          const label = prefix === autoSubnet ? `Your network (${prefix}.x)` : `${prefix}.x`;
+          // Scan in batches of 32 in parallel for speed
           for (let start = 1; start <= 254; start += 32) {
             const batch = [];
             for (let h = start; h < start + 32 && h <= 254; h++) batch.push(`${prefix}.${h}`);
-            const results = await Promise.all(batch.map(ip => this.probeIp(ip, 900)));
+            const results = await Promise.all(batch.map(ip => this.probeIp(ip, 1200)));
             done += batch.length;
-            onProgress && onProgress(Math.round((done / total) * 100), `Scanning ${prefix}.x`);
+            onProgress && onProgress(Math.round((done / total) * 100), `Scanning ${label}`);
             results.filter(Boolean).forEach(r => { if (!found.some(f => f.ip === r.ip)) found.push(r); });
           }
-          if (found.length) break;
+          if (found.length) break; // Found on this subnet — stop searching
         }
       } finally { NARI.isScanning = false; }
       return found;

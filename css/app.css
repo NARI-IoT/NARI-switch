@@ -263,3 +263,7 @@ details[open] summary { margin-bottom: 8px; }
 .pstep-body code { background: rgba(52, 211, 153, 0.12); color: var(--accent); border-radius: 5px; padding: 1px 5px; font-size: 0.72rem; font-family: ui-monospace, Menlo, monospace; }
 .pkey { display: inline-flex; align-items: center; gap: 6px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 4px 9px; font-size: 0.73rem; color: #fde68a; margin: 5px 0; }
 .scan-divider { text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); padding: 10px 0 10px; letter-spacing: 0.3px; }
+.manual-ip-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.manual-ip-row input { flex: 1; }
+.manual-ip-row .btn { flex: none; white-space: nowrap; }
+
