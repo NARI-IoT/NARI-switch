@@ -15,6 +15,7 @@
     btnLogin: document.getElementById("btnLogin"),
     btnDiag: document.getElementById("btnDiag"),
     diagDot: document.getElementById("diagDot"),
+    btnShare: document.getElementById("btnShare"),
     btnSettings: document.getElementById("btnSettings"),
     btnAdd: document.getElementById("btnAdd"),
     btnInstall: document.getElementById("btnInstall")
@@ -104,7 +105,21 @@
       return;
     }
 
-    dom.deviceList.innerHTML = store.devices.map((dev, i) => {
+    const scenesHtml = `
+      <div class="scenes-bar">
+        <div class="scenes-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Master Controls</div>
+        <div class="scenes-btns">
+          <button class="scene-btn off" onclick="NARI.app.allOff()" title="Turn OFF all switches">
+            <i class="fa-solid fa-moon"></i> All OFF
+          </button>
+          <button class="scene-btn on" onclick="NARI.app.allOn()" title="Turn ON all switches">
+            <i class="fa-solid fa-bolt"></i> All ON
+          </button>
+        </div>
+      </div>
+    `;
+
+    dom.deviceList.innerHTML = scenesHtml + store.devices.map((dev, i) => {
       const isOnline = dev.isOnline !== false;
       const isVerifying = !!dev._isVerifying;
       const hasBg = !!dev.bgPhoto;
@@ -377,6 +392,11 @@
       </button>
       <div class="progress hidden" id="scanProgress"><div id="scanBar"></div></div>
       <div class="found-list" id="scanResults"></div>
+
+      <div class="scan-divider" style="margin-top:14px;">Family &amp; Guest Sharing</div>
+      <button class="btn secondary sm" style="width:100%;" onclick="NARI.app.openImportModal()">
+        <i class="fa-solid fa-qrcode"></i>&nbsp; Import Switches from Family QR / Code
+      </button>
     `);
   };
 
@@ -603,6 +623,143 @@
   NARI.app.signIn = () => store.auth && store.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => showToast(e.message, "error"));
   NARI.app.signOut = () => store.auth && store.auth.signOut();
 
+  // --- Master Controls (Option 3) ---
+  NARI.app.allOff = async () => {
+    if (!store.devices.length) return;
+    showToast("Turning OFF all switches...", "info");
+    for (let i = 0; i < store.devices.length; i++) {
+      if (store.devices[i].state) {
+        transport.setState(i, false, { quiet: true });
+      }
+    }
+    setTimeout(() => {
+      renderDeviceCards();
+      showToast("All switches turned OFF", "ok");
+    }, 450);
+  };
+
+  NARI.app.allOn = async () => {
+    if (!store.devices.length) return;
+    showToast("Turning ON all switches...", "info");
+    for (let i = 0; i < store.devices.length; i++) {
+      if (!store.devices[i].state) {
+        transport.setState(i, true, { quiet: true });
+      }
+    }
+    setTimeout(() => {
+      renderDeviceCards();
+      showToast("All switches turned ON", "ok");
+    }, 450);
+  };
+
+  // --- One-Tap QR Share for Family & Guests (Option 2) ---
+  NARI.app.openShareModal = () => {
+    if (!store.devices.length) {
+      showToast("Add at least one switch before sharing", "warn");
+      return;
+    }
+    const cleanList = store.devices.map(d => ({
+      name: d.name,
+      ip: d.ip,
+      id: d.id
+    }));
+    const rawStr = JSON.stringify(cleanList);
+    const shareCode = btoa(unescape(encodeURIComponent(rawStr)));
+
+    openSheet(`
+      <div class="sheet-header">
+        <div>Family &amp; Guest Share<span class="sub">1-Tap Instant Sync</span></div>
+        <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
+      </div>
+      <p class="small muted" style="text-align:center;margin-bottom:6px;">
+        Family members or guests can scan this QR code with their phone camera to instantly add your home switches.
+      </p>
+      <div class="qr-container" id="shareQrTarget"></div>
+      <div class="small muted" style="text-align:center;margin-bottom:4px;">Or copy share code to send via WhatsApp:</div>
+      <div class="share-code-box" id="shareCodeText">${shareCode}</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn primary sm" style="flex:1;" onclick="NARI.app.copyShareCode('${shareCode}')">
+          <i class="fa-solid fa-copy"></i> Copy Code
+        </button>
+        <button class="btn secondary sm" style="flex:1;" onclick="NARI.app.openImportModal()">
+          <i class="fa-solid fa-file-import"></i> Import Code
+        </button>
+      </div>
+    `);
+
+    setTimeout(() => {
+      const target = document.getElementById("shareQrTarget");
+      if (target && typeof QRCode !== "undefined") {
+        target.innerHTML = "";
+        try {
+          new QRCode(target, {
+            text: "nari:" + shareCode,
+            width: 160,
+            height: 160,
+            colorDark: "#0b1a13",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+          });
+        } catch (e) {
+          console.warn("QR render failed", e);
+        }
+      }
+    }, 100);
+  };
+
+  NARI.app.copyShareCode = (code) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(code).then(() => showToast("Share code copied to clipboard!", "ok"));
+    } else {
+      showToast("Code copied!", "ok");
+    }
+  };
+
+  NARI.app.openImportModal = () => {
+    openSheet(`
+      <div class="sheet-header">
+        <div>Import Family Switches<span class="sub">QR or Share Code</span></div>
+        <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
+      </div>
+      <p class="small muted" style="margin-bottom:10px;">
+        Paste the share code sent by the home owner to add all switches instantly:
+      </p>
+      <div class="form-group">
+        <textarea id="importCodeInput" rows="3" placeholder="Paste share code here..." style="width:100%;resize:none;font-family:ui-monospace,Menlo,monospace;font-size:0.75rem;padding:8px;border-radius:10px;background:rgba(0,0,0,0.3);border:1px solid var(--card-border);color:var(--text);"></textarea>
+      </div>
+      <button class="btn primary" style="width:100%;margin-top:4px;" onclick="NARI.app.importShareCode()">
+        <i class="fa-solid fa-file-import"></i> Import Switches
+      </button>
+    `);
+  };
+
+  NARI.app.importShareCode = () => {
+    const raw = (document.getElementById("importCodeInput")?.value || "").trim();
+    if (!raw) { showToast("Please paste a share code first.", "warn"); return; }
+    try {
+      let cleanStr = raw.startsWith("nari:") ? raw.slice(5) : raw;
+      const decoded = decodeURIComponent(escape(atob(cleanStr)));
+      const items = JSON.parse(decoded);
+      if (!Array.isArray(items) || !items.length) throw new Error("Invalid format");
+      let count = 0;
+      items.forEach(item => {
+        if (!store.exists(item.id, item.ip)) {
+          store.add({ name: item.name || "Switch", ip: item.ip || "", id: item.id || "" });
+          count++;
+        }
+      });
+      renderDeviceCards();
+      closeSheet();
+      showToast(`✅ Successfully imported ${count} switch(es)!`, "ok");
+    } catch (e) {
+      showToast("Invalid share code. Check and try again.", "error");
+    }
+  };
+
+  if (dom.btnShare) {
+    dom.btnShare.onclick = () => NARI.app.openShareModal();
+  }
+
   // --- PWA Installation Event ---
   window.addEventListener("beforeinstallprompt", e => {
     e.preventDefault();
@@ -616,6 +773,17 @@
     if (outcome === "accepted") dom.btnInstall.classList.remove("show");
     deferredInstallPrompt = null;
   };
+
+  // --- Check PWA Home Screen Shortcuts (?action=all-off / ?action=all-on) (Option 6) ---
+  (function checkShortcuts() {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get("action");
+    if (action === "all-off") {
+      setTimeout(() => NARI.app.allOff(), 700);
+    } else if (action === "all-on") {
+      setTimeout(() => NARI.app.allOn(), 700);
+    }
+  })();
 
   // --- Event Bus Subscriptions ---
   bus.on("devices:changed", () => renderDeviceCards());

@@ -11,5 +11,21 @@
       "sizes": "192x192",
       "type": "image/png"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "All Switches OFF",
+      "short_name": "All OFF",
+      "description": "Turn off all NARI smart switches",
+      "url": "./index.html?action=all-off",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "All Switches ON",
+      "short_name": "All ON",
+      "description": "Turn on all NARI smart switches",
+      "url": "./index.html?action=all-on",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }
