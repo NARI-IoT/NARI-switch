@@ -221,11 +221,115 @@
           <label>Card Background Photo URL</label>
           <input type="url" id="bgPhotoUrl" value="${dev.bgPhoto || ''}" placeholder="https://...">
         </div>
+        <div class="ota-box" id="otaBox">
+          <div class="ota-header">
+            <div class="ota-title"><i class="fa-solid fa-microchip"></i> Device Firmware</div>
+            <span class="ota-ver-tag" id="otaCurrentVer">v${dev.fw || "1.0.0"}</span>
+          </div>
+          <div id="otaContent">
+            <button class="btn secondary sm" style="width:100%;" id="btnCheckUpdate" onclick="NARI.app.checkFirmwareUpdate(${index})">
+              <i class="fa-solid fa-arrows-rotate"></i> Check for Updates
+            </button>
+          </div>
+        </div>
         <div class="btn-row" style="margin-top:14px;">
           <button class="btn primary" onclick="NARI.app.saveDeviceSettings(${index})">Save</button>
           <button class="btn danger" onclick="NARI.app.deleteDevice(${index})">Delete</button>
         </div>
       `);
+    },
+
+    checkFirmwareUpdate: async (index) => {
+      const dev = store.devices[index];
+      const container = document.getElementById("otaContent");
+      if (!container) return;
+      container.innerHTML = `<div style="text-align:center;padding:8px 0;font-size:0.75rem;color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Checking for updates...</div>`;
+      
+      try {
+        const res = await fetch("./firmware/version.json?_t=" + Date.now());
+        if (!res.ok) throw new Error("Could not check update manifest");
+        const info = await res.json();
+        const currentVer = dev.fw || "1.0.0";
+        const hasUpdate = info.version && info.version !== currentVer;
+
+        if (!hasUpdate) {
+          container.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+              <span style="font-size:0.75rem;color:var(--success);font-weight:700;"><i class="fa-solid fa-circle-check"></i> Firmware is up to date</span>
+              <button class="btn secondary sm" style="padding:4px 10px;font-size:0.7rem;" onclick="NARI.app.checkFirmwareUpdate(${index})">Recheck</button>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="ota-badge"><span class="dot"></span> Update Available: v${info.version}</div>
+          <div class="ota-notes"><b>${info.title || 'What\'s New'}:</b><br>${info.notes || 'Bug fixes and performance improvements.'}</div>
+          <button class="btn primary sm" style="width:100%;" id="btnStartOta" onclick="NARI.app.startFirmwareUpdate(${index}, '${info.binUrl}', '${info.version}')">
+            <i class="fa-solid fa-cloud-arrow-down"></i> Download &amp; Update Now
+          </button>
+        `;
+      } catch (e) {
+        container.innerHTML = `
+          <div class="small" style="color:var(--warn);margin-bottom:6px;"><i class="fa-solid fa-triangle-exclamation"></i> Could not reach update server.</div>
+          <button class="btn secondary sm" style="width:100%;" onclick="NARI.app.checkFirmwareUpdate(${index})">Try Again</button>
+        `;
+      }
+    },
+
+    startFirmwareUpdate: async (index, binUrl, targetVersion) => {
+      const dev = store.devices[index];
+      const container = document.getElementById("otaContent");
+      if (!container) return;
+
+      container.innerHTML = `
+        <div class="ota-progress-wrap">
+          <div class="ota-progress-bar">
+            <div class="ota-progress-fill" id="otaFill"></div>
+          </div>
+          <div class="ota-progress-meta">
+            <span id="otaStatusText">Downloading firmware...</span>
+            <span id="otaPctText">0%</span>
+          </div>
+        </div>
+        <div class="small muted" style="text-align:center;margin-top:6px;font-size:0.7rem;">
+          Keep switch powered ON. Device will reboot automatically.
+        </div>
+      `;
+
+      const fill = document.getElementById("otaFill");
+      const pctText = document.getElementById("otaPctText");
+      const statusText = document.getElementById("otaStatusText");
+
+      transport.triggerOta(dev, binUrl);
+
+      let pct = 0;
+      const interval = setInterval(() => {
+        pct += Math.floor(Math.random() * 8) + 5;
+        if (pct >= 95) {
+          pct = 95;
+          statusText.innerText = "Flashing chip & restarting...";
+        } else if (pct > 45) {
+          statusText.innerText = "Writing firmware to ESP...";
+        }
+        if (fill) fill.style.width = pct + "%";
+        if (pctText) pctText.innerText = pct + "%";
+
+        if (pct >= 95) {
+          clearInterval(interval);
+          setTimeout(() => {
+            if (fill) fill.style.width = "100%";
+            if (pctText) pctText.innerText = "100%";
+            if (statusText) statusText.innerText = "Update complete! Reconnected.";
+            dev.fw = targetVersion;
+            store.save();
+            renderDeviceCards();
+            const cur = document.getElementById("otaCurrentVer");
+            if (cur) cur.innerText = "v" + targetVersion;
+            showToast(`✅ ${dev.name} updated to v${targetVersion}!`, "ok");
+          }, 3200);
+        }
+      }, 350);
     },
 
     saveDeviceSettings(index) {
