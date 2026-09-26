@@ -15,7 +15,7 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/app.css?v=1.1.0">
 
   <!-- MQTT client for WebSockets -->
   <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
@@ -55,6 +55,9 @@
       <button class="icon-btn" id="btnDiag" title="Connection status">
         <i class="fa-solid fa-heart-pulse"></i>
         <span class="dot hidden" id="diagDot"></span>
+      </button>
+      <button class="icon-btn" id="btnScenes" title="Smart Scenes &amp; Automations">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
       </button>
       <button class="icon-btn" id="btnShare" title="Family &amp; Guest Share">
         <i class="fa-solid fa-qrcode"></i>
@@ -97,8 +100,8 @@
   <script src="js/transport.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/sensors.js"></script>
-  <script src="js/scenes.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/sharing.js"></script>
+  <script src="js/scenes.js?v=1.1.0"></script>
+  <script src="js/app.js?v=1.1.0"></script>
+  <script src="js/sharing.js?v=1.1.0"></script>
 </body>
 </html>

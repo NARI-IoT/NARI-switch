@@ -986,6 +986,40 @@ details[open] summary { margin-bottom: 8px; }
   gap: 4px;
 }
 
+/* Modal Hub: Opened from top-right icon button */
+.scenes-hub-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+.scenes-hub-top-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.scenes-hub-top-row .grow {
+  flex: 1;
+}
+.scenes-grid-wrap {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+.scenes-grid-wrap .scene-card {
+  flex: none;
+  width: 100%;
+  min-height: 108px;
+}
+@media (max-width: 420px) {
+  .scenes-grid-wrap {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Scene Editor Sheet Styling */
 .scene-editor-wrap {
   display: flex;

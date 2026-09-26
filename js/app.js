@@ -15,6 +15,7 @@
     btnLogin: document.getElementById("btnLogin"),
     btnDiag: document.getElementById("btnDiag"),
     diagDot: document.getElementById("diagDot"),
+    btnScenes: document.getElementById("btnScenes"),
     btnShare: document.getElementById("btnShare"),
     btnSettings: document.getElementById("btnSettings"),
     btnAdd: document.getElementById("btnAdd"),
@@ -105,23 +106,7 @@
       return;
     }
 
-    const scenesHtml = (NARI.scenes && typeof NARI.scenes.renderDashboardBar === "function")
-      ? NARI.scenes.renderDashboardBar()
-      : `
-      <div class="scenes-bar">
-        <div class="scenes-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Master Controls</div>
-        <div class="scenes-btns">
-          <button class="scene-btn off" onclick="NARI.app.allOff()" title="Turn OFF all switches">
-            <i class="fa-solid fa-moon"></i> All OFF
-          </button>
-          <button class="scene-btn on" onclick="NARI.app.allOn()" title="Turn ON all switches">
-            <i class="fa-solid fa-bolt"></i> All ON
-          </button>
-        </div>
-      </div>
-    `;
-
-    dom.deviceList.innerHTML = scenesHtml + store.devices.map((dev, i) => {
+    dom.deviceList.innerHTML = store.devices.map((dev, i) => {
       const isOnline = dev.isOnline !== false;
       const isVerifying = !!dev._isVerifying;
       // Guard: if bgPhoto is invalid/broken, clear it so card doesn't show broken image
@@ -973,6 +958,14 @@
       showToast("Invalid share code. Check and try again.", "error");
     }
   };
+
+  if (dom.btnScenes) {
+    dom.btnScenes.onclick = () => {
+      if (NARI.scenes && typeof NARI.scenes.openScenesHub === "function") {
+        NARI.scenes.openScenesHub();
+      }
+    };
+  }
 
   if (dom.btnShare) {
     dom.btnShare.onclick = () => NARI.app.openShareModal();

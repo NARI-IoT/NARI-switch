@@ -916,6 +916,86 @@
       }
     },
 
+    // ---------- Top-Right Icon: Smart Scenes Hub Modal ----------
+    openScenesHub() {
+      const isSuper = this.isSupervisor();
+      const currentActive = this.activeSceneId;
+
+      const html = `
+        <div class="sheet-header">
+          <div>
+            <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);margin-right:6px;"></i>
+            Smart Scenes &amp; Automations
+            <span class="sub">${this.list.length} Automations Ready &bull; Parallel sub-100ms</span>
+          </div>
+          <button class="btn-close" onclick="NARI.closeSheet()">✕</button>
+        </div>
+
+        <div class="scenes-hub-modal">
+          <!-- Fast Master Controls -->
+          <div class="scenes-hub-top-row">
+            <button class="scene-fast-btn all-off grow" onclick="NARI.scenes.allOff()" title="Turn all switches OFF">
+              <i class="fa-solid fa-moon"></i> All OFF
+            </button>
+            <button class="scene-fast-btn all-on grow" onclick="NARI.scenes.allOn()" title="Turn all switches ON">
+              <i class="fa-solid fa-bolt"></i> All ON
+            </button>
+            ${isSuper ? `
+              <button class="scene-add-btn" onclick="NARI.scenes.openSceneEditor()" title="Create New Smart Scene (Home Admin)">
+                <i class="fa-solid fa-plus"></i> New
+              </button>
+            ` : ''}
+          </div>
+
+          <!-- Scenes Grid -->
+          <div class="scenes-grid-wrap">
+            ${this.list.map(s => {
+              const isActive = s.id === currentActive;
+              let triggerTag = "";
+              if (s.trigger) {
+                if (s.trigger.type === "device") triggerTag = `⚡ ${s.trigger.label || 'Switch'}`;
+                else if (s.trigger.mode === "clap") triggerTag = `👏 Clap`;
+                else if (s.trigger.mode === "flip") triggerTag = `📱 Flip`;
+                else if (s.trigger.mode === "shake") triggerTag = `📳 Shake`;
+                else if (s.trigger.mode === "presence") triggerTag = `📍 Arrive`;
+              }
+
+              return `
+                <div class="scene-card ${isActive ? 'active' : ''}" style="--scene-color:${s.color || 'var(--primary)'};" onclick="NARI.scenes.executeScene('${s.id}')">
+                  <div class="scene-top-row">
+                    <div class="scene-icon-badge" style="background:${s.color || 'var(--primary)'};">
+                      <i class="fa-solid ${s.icon || 'fa-wand-magic-sparkles'}"></i>
+                    </div>
+                    ${isSuper ? `
+                      <button class="scene-edit-btn" onclick="event.stopPropagation(); NARI.scenes.openSceneEditor('${s.id}')" title="Edit Scene (Home Admin)">
+                        <i class="fa-solid fa-pen"></i>
+                      </button>
+                    ` : ''}
+                  </div>
+                  <div class="scene-info">
+                    <b class="scene-name">${s.name}</b>
+                    <span class="scene-sub">${s.subtitle || '1-Tap Scene'}</span>
+                  </div>
+                  ${triggerTag ? `
+                    <div class="scene-trigger-tag">
+                      ${triggerTag}
+                    </div>
+                  ` : ''}
+                </div>
+              `;
+            }).join("")}
+          </div>
+
+          <div class="small muted text-center" style="margin-top:12px;text-align:center;">
+            <i class="fa-solid fa-shield-halved" style="color:var(--accent);margin-right:4px;"></i>
+            <span>${isSuper ? '👑 Home Admin: Tap card to run, or tap pencil to edit with eWeLink builder.' : 'Family Mode: Tap any scene to run.'}</span>
+          </div>
+        </div>
+      `;
+
+      NARI.openSheet(html);
+    },
+
     // ---------- Dashboard Render Helper ----------
     renderDashboardBar() {
       const isSuper = this.isSupervisor();
