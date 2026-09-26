@@ -105,7 +105,9 @@
       return;
     }
 
-    const scenesHtml = `
+    const scenesHtml = (NARI.scenes && typeof NARI.scenes.renderDashboardBar === "function")
+      ? NARI.scenes.renderDashboardBar()
+      : `
       <div class="scenes-bar">
         <div class="scenes-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Master Controls</div>
         <div class="scenes-btns">
@@ -198,9 +200,13 @@
     if (e.target === dom.overlay) closeSheet();
   };
 
+  NARI.openSheet = openSheet;
+  NARI.closeSheet = closeSheet;
+
   // --- Exposed App Methods ---
   NARI.app = {
     closeSheet,
+    openSheet,
 
     async toggleRelay(index) {
       const dev = store.devices[index];
