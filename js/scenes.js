@@ -2,10 +2,11 @@
  * NARI Smart Home — Smart Scenes & Master Automations Hub
  * 
  * Features:
+ * - eWeLink-Style Creative Scene Builder (If this triggers -> Then that actions)
+ * - Cross-Switch Automations (e.g. If Tank switch turns ON -> Then Motor switch turns OFF)
  * - One-Tap Multi-Device Scene Activation (Parallel sub-100ms response)
  * - "One-to-All" Master Trigger by Mode (Clap, Flip, Shake, Voice, Geofence, Time)
  * - Exclusive Supervision Controls (Only Home Admin can create/edit/delete scenes)
- * - Custom Scene Builder with visual icon and color picker
  * - Stored in localStorage + single-document cloud sync ($0 Zero-Cost)
  */
 
@@ -16,15 +17,46 @@
 
   const STORAGE_KEY_SCENES = "nari_smart_scenes";
 
-  // Pre-configured commercial preset scenes (Apple Home / Philips Hue style)
+  // Pre-configured commercial preset scenes + eWeLink example
   const defaultScenes = [
+    {
+      id: "scene_motor_off_1",
+      name: "Motor OFF 1",
+      icon: "fa-water",
+      color: "#06b6d4",
+      home: "Nari home IoT",
+      trigger: {
+        type: "device",
+        deviceId: "dev_tank",
+        deviceName: "Tank ON and OFF",
+        condition: "on",
+        label: "Tank ON and OFF",
+        subLabel: "Channel2 Single-pressed"
+      },
+      actions: [
+        {
+          deviceId: "dev_motor",
+          deviceName: "NARI",
+          state: false,
+          actionLabel: "Motor OFF ON"
+        }
+      ],
+      notify: true,
+      notifyEmail: "galle****ult11@gmail.com",
+      subtitle: "If Tank full -> Motor OFF"
+    },
     {
       id: "scene_morning",
       name: "Good Morning",
       icon: "fa-sun",
       color: "#f59e0b",
-      triggerMode: "none",
-      actions: {}, // { switchId: true (ON) | false (OFF) }
+      home: "Nari home IoT",
+      trigger: {
+        type: "manual",
+        label: "Tap to Run",
+        subLabel: "1-Tap from Dashboard"
+      },
+      actions: [],
       defaultAll: "on",
       subtitle: "Turn on day appliances"
     },
@@ -33,8 +65,14 @@
       name: "Good Night",
       icon: "fa-moon",
       color: "#6366f1",
-      triggerMode: "flip", // Flipped face down at night triggers Good Night!
-      actions: {},
+      home: "Nari home IoT",
+      trigger: {
+        type: "sensor",
+        mode: "flip",
+        label: "Flip Phone Down 📱",
+        subLabel: "Place phone face-down at night"
+      },
+      actions: [],
       defaultAll: "off",
       subtitle: "Turn off all lights & appliances"
     },
@@ -43,8 +81,14 @@
       name: "Cinema Time",
       icon: "fa-film",
       color: "#ec4899",
-      triggerMode: "clap", // Double clap triggers Movie scene!
-      actions: {},
+      home: "Nari home IoT",
+      trigger: {
+        type: "sensor",
+        mode: "clap",
+        label: "Double Clap 👏",
+        subLabel: "Clap twice near phone"
+      },
+      actions: [],
       subtitle: "Cozy ambient mood lighting"
     },
     {
@@ -52,7 +96,13 @@
       name: "Leaving Home",
       icon: "fa-door-open",
       color: "#ef4444",
-      triggerMode: "none",
+      home: "Nari home IoT",
+      trigger: {
+        type: "manual",
+        label: "Tap to Run",
+        subLabel: "1-Tap from Dashboard"
+      },
+      actions: [],
       defaultAll: "off",
       subtitle: "All switches off for safety"
     },
@@ -61,8 +111,14 @@
       name: "Welcome Home",
       icon: "fa-house-chimney",
       color: "#10b981",
-      triggerMode: "presence", // Arriving home triggers Welcome scene!
-      actions: {},
+      home: "Nari home IoT",
+      trigger: {
+        type: "sensor",
+        mode: "presence",
+        label: "Arriving Home 📍",
+        subLabel: "Auto triggers on home Wi-Fi"
+      },
+      actions: [],
       defaultAll: "on",
       subtitle: "Hallway & essential lights ON"
     },
@@ -71,8 +127,14 @@
       name: "Party Mode",
       icon: "fa-champagne-glasses",
       color: "#a855f7",
-      triggerMode: "shake",
-      actions: {},
+      home: "Nari home IoT",
+      trigger: {
+        type: "sensor",
+        mode: "shake",
+        label: "Shake Phone 📳",
+        subLabel: "Firm shake to trigger"
+      },
+      actions: [],
       subtitle: "All lights active with strobe"
     }
   ];
@@ -80,7 +142,47 @@
   function loadLocalScenes() {
     try {
       const v = JSON.parse(localStorage.getItem(STORAGE_KEY_SCENES));
-      if (Array.isArray(v) && v.length > 0) return v;
+      if (Array.isArray(v) && v.length > 0) {
+        // Upgrade older format scenes if needed
+        return v.map(s => {
+          if (!s.trigger) {
+            if (s.triggerMode && s.triggerMode !== "none") {
+              s.trigger = {
+                type: "sensor",
+                mode: s.triggerMode,
+                label: s.triggerMode === "clap" ? "Double Clap 👏" :
+                       s.triggerMode === "flip" ? "Flip Phone Down 📱" :
+                       s.triggerMode === "shake" ? "Shake Phone 📳" :
+                       s.triggerMode === "presence" ? "Arriving Home 📍" : s.triggerMode,
+                subLabel: "Sensor mode trigger"
+              };
+            } else {
+              s.trigger = {
+                type: "manual",
+                label: "Tap to Run",
+                subLabel: "1-Tap from Dashboard"
+              };
+            }
+          }
+          if (!s.home) s.home = "Nari home IoT";
+          if (!Array.isArray(s.actions)) {
+            // Convert legacy actions object { devId: true } to array
+            const actArr = [];
+            if (s.actions && typeof s.actions === "object") {
+              for (const [k, v] of Object.entries(s.actions)) {
+                actArr.push({
+                  deviceId: k,
+                  deviceName: k,
+                  state: v,
+                  actionLabel: v ? "Turn ON" : "Turn OFF"
+                });
+              }
+            }
+            s.actions = actArr;
+          }
+          return s;
+        });
+      }
     } catch (e) {}
     return defaultScenes;
   }
@@ -95,14 +197,25 @@
   const scenes = {
     list: loadLocalScenes(),
     activeSceneId: null,
+    _currentEdit: null, // Temporary scene state being edited
 
     init() {
-      // Listen to sensor trigger events for "One-to-All" mode triggers
+      // 1. Listen to sensor trigger events for "One-to-All" mode triggers
       bus.on("trigger:fired", (e) => {
         this._handleSensorEvent(e.type);
       });
 
-      // Tab visibility listener to refresh active scene state
+      // 2. Watch device state updates for cross-switch automations
+      bus.on("device:updated", (idx) => {
+        this._checkDeviceAutomations(idx);
+      });
+      bus.on("device:commanded", (e) => {
+        if (e && e.index !== undefined) {
+          this._checkDeviceAutomations(e.index);
+        }
+      });
+
+      // 3. Tab visibility listener to refresh active scene state
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") this._evaluateActiveState();
       });
@@ -117,6 +230,40 @@
         return NARI.sharing.isSupervisor();
       }
       return true;
+    },
+
+    // ---------- Cross-Device Smart Automation Engine ----------
+    _checkDeviceAutomations(idx) {
+      const dev = store.devices && store.devices[idx];
+      if (!dev) return;
+      const devKey = dev.id || dev.ip || dev.name;
+      const now = Date.now();
+
+      for (const scene of this.list) {
+        if (!scene.trigger || scene.trigger.type !== "device") continue;
+        // 3-second loop/debounce guard
+        if (scene._lastTriggered && (now - scene._lastTriggered < 3000)) continue;
+
+        const trigDev = scene.trigger.deviceId;
+        const trigName = scene.trigger.deviceName;
+        const matchesDev = (trigDev === devKey || trigDev === dev.id || trigDev === dev.ip || trigDev === dev.name || trigName === dev.name);
+
+        if (!matchesDev) continue;
+
+        const cond = scene.trigger.condition; // "on", "off", "toggle"
+        const isMatch = (cond === "on" && dev.state === true) ||
+                        (cond === "off" && dev.state === false) ||
+                        (cond === "toggle");
+
+        if (isMatch) {
+          scene._lastTriggered = now;
+          console.log(`[Smart Automation] Switch "${dev.name}" triggered scene "${scene.name}"!`);
+          if (NARI.showToast) {
+            NARI.showToast(`⚡ Automation: "${dev.name}" triggered "${scene.name}"`, "info");
+          }
+          this.executeScene(scene.id);
+        }
+      }
     },
 
     // ---------- Scene Execution Engine (Sub-100ms Parallel Batch) ----------
@@ -137,24 +284,39 @@
       const promises = [];
       let adjustedCount = 0;
 
-      for (let i = 0; i < devices.length; i++) {
-        const dev = devices[i];
-        const devKey = dev.id || dev.ip;
-        let targetState = null;
+      // Handle specific action items defined in scene
+      if (Array.isArray(scene.actions) && scene.actions.length > 0) {
+        for (const act of scene.actions) {
+          const devIdx = devices.findIndex(d => 
+            (d.id && d.id === act.deviceId) || 
+            (d.ip && d.ip === act.deviceId) || 
+            (d.name && (d.name === act.deviceName || d.name === act.deviceId))
+          );
 
-        // Check explicit action in scene
-        if (scene.actions && scene.actions[devKey] !== undefined) {
-          targetState = scene.actions[devKey];
-        } else if (scene.defaultAll === "off") {
-          targetState = false;
-        } else if (scene.defaultAll === "on") {
-          targetState = true;
+          if (devIdx >= 0) {
+            const dev = devices[devIdx];
+            let targetState = act.state;
+            if (targetState === "toggle") targetState = !dev.state;
+
+            if (dev.state !== targetState) {
+              adjustedCount++;
+              promises.push(transport.setState(devIdx, targetState, { quiet: true, source: "scene:" + scene.id }));
+            }
+          }
         }
+      }
 
-        if (targetState !== null && dev.state !== targetState) {
-          adjustedCount++;
-          // Fire parallel commands over both MQTT WebSocket and local LAN simultaneously
-          promises.push(transport.setState(i, targetState, { quiet: true, source: "scene:" + scene.id }));
+      // Handle global scenes (Good Morning / Good Night / Away / Welcome)
+      if (scene.defaultAll) {
+        const targetAll = scene.defaultAll === "on";
+        for (let i = 0; i < devices.length; i++) {
+          const dev = devices[i];
+          // If not explicitly overridden, apply defaultAll
+          const isExplicit = Array.isArray(scene.actions) && scene.actions.some(a => a.deviceId === dev.id || a.deviceName === dev.name);
+          if (!isExplicit && dev.state !== targetAll) {
+            adjustedCount++;
+            promises.push(transport.setState(i, targetAll, { quiet: true, source: "scene:" + scene.id }));
+          }
         }
       }
 
@@ -187,16 +349,18 @@
     // ---------- Sensor Mode Binding (One-to-All) ----------
     _handleSensorEvent(sensorType) {
       if (!sensorType) return;
-      // Find any scene that is bound to this sensor mode
-      const matchedScene = this.list.find(s => s.triggerMode === sensorType);
+      // Match scene with trigger.mode === sensorType or legacy triggerMode
+      const matchedScene = this.list.find(s => 
+        (s.trigger && s.trigger.type === "sensor" && s.trigger.mode === sensorType) ||
+        (s.triggerMode === sensorType)
+      );
       if (matchedScene) {
-        console.log(`[Smart Scenes] Trigger mode "${sensorType}" fired -> Executing scene "${matchedScene.name}"`);
+        console.log(`[Smart Scenes] Sensor mode "${sensorType}" fired -> Executing scene "${matchedScene.name}"`);
         this.executeScene(matchedScene.id);
       }
     },
 
     _evaluateActiveState() {
-      // Check if current device states match a known scene
       const devices = store.devices || [];
       if (!devices.length) return;
       const allOff = devices.every(d => !d.state);
@@ -205,215 +369,536 @@
       else if (allOn) this.activeSceneId = "scene_welcome";
     },
 
-    // ---------- Supervision Modal: Create & Edit Smart Scenes ----------
+    // ========================================================
+    // eWeLink-Style Creative Scene Editor UI
+    // ========================================================
     openSceneEditor(sceneId) {
-      // Permission check: Only Home Admin (Supervisor) can edit or configure scenes
       if (!this.isSupervisor()) {
         alert("👑 Permission Denied:\nOnly the Home Admin (Supervisor) can create or customize Smart Scenes.\nFamily members can activate scenes from the dashboard.");
         return;
       }
 
       const isNew = !sceneId;
-      const scene = isNew ? {
+      const existing = sceneId ? this.list.find(s => s.id === sceneId) : null;
+
+      // Deep clone or create initial scene state
+      this._currentEdit = isNew ? {
         id: "scene_" + Date.now(),
         name: "My Scene",
-        icon: "fa-star",
-        color: "#10b981",
-        triggerMode: "none",
-        actions: {},
-        subtitle: "Custom Scene"
-      } : JSON.parse(JSON.stringify(this.list.find(s => s.id === sceneId) || {}));
+        icon: "fa-wand-magic-sparkles",
+        color: "#06b6d4",
+        home: "Nari home IoT",
+        trigger: {
+          type: "manual",
+          label: "Tap to Run",
+          subLabel: "1-Tap from Dashboard"
+        },
+        actions: [],
+        notify: false,
+        notifyEmail: "user@example.com",
+        isNew: true
+      } : JSON.parse(JSON.stringify(existing));
 
-      const devices = store.devices || [];
-      const iconOptions = [
-        { id: "fa-sun", label: "Morning" },
-        { id: "fa-moon", label: "Night" },
-        { id: "fa-film", label: "Movie" },
-        { id: "fa-house-chimney", label: "Home" },
-        { id: "fa-door-open", label: "Away" },
-        { id: "fa-champagne-glasses", label: "Party" },
-        { id: "fa-couch", label: "Relax" },
-        { id: "fa-utensils", label: "Dining" },
-        { id: "fa-book-open", label: "Study" },
-        { id: "fa-mug-hot", label: "Coffee" },
-        { id: "fa-bed", label: "Sleep" },
-        { id: "fa-bolt", label: "Energy" }
-      ];
+      if (!this._currentEdit.home) this._currentEdit.home = "Nari home IoT";
+      if (!Array.isArray(this._currentEdit.actions)) this._currentEdit.actions = [];
 
-      const triggerOptions = [
-        { id: "none", label: "Manual 1-Tap Only", desc: "Activate by tapping card" },
-        { id: "clap", label: "Double Clap 👏", desc: "Clap twice near phone to trigger" },
-        { id: "flip", label: "Flip Phone Down 📱", desc: "Place phone face-down (great for Good Night)" },
-        { id: "shake", label: "Shake Phone 📳", desc: "Give phone a firm shake" },
-        { id: "presence", label: "Arriving Home 📍", desc: "Triggers automatically when entering home Wi-Fi" }
-      ];
+      this._renderSceneEditor();
+    },
 
-      NARI.openSheet(`
-        <div class="sheet-header">
-          <div>${isNew ? 'Create Smart Scene' : 'Edit Smart Scene'}<span class="sub">Supervisor Automation Manager</span></div>
-          <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
-        </div>
+    _renderSceneEditor() {
+      const scene = this._currentEdit;
+      if (!scene) return;
+      const isNew = !!scene.isNew;
 
-        <div class="scene-editor-wrap">
-          <!-- Scene Name & Color -->
-          <div class="form-group sm">
-            <label>Scene Name</label>
-            <input type="text" id="sceneNameInput" value="${scene.name}" placeholder="e.g. Dinner Time, Reading">
+      const trigger = scene.trigger || {
+        type: "manual",
+        label: "Tap to Run",
+        subLabel: "1-Tap from Dashboard"
+      };
+
+      const actions = scene.actions || [];
+
+      // Determine trigger icon and badge color
+      let trigIcon = "fa-hand-pointer";
+      if (trigger.type === "device") trigIcon = "fa-plug";
+      else if (trigger.mode === "clap") trigIcon = "fa-hands-clapping";
+      else if (trigger.mode === "flip") trigIcon = "fa-mobile-screen";
+      else if (trigger.mode === "shake") trigIcon = "fa-hand";
+      else if (trigger.mode === "presence") trigIcon = "fa-house-chimney";
+
+      const html = `
+        <div class="ewelink-editor">
+          <!-- Top Navigation Header -->
+          <div class="ewelink-topbar">
+            <button class="ewelink-back-btn" onclick="NARI.closeSheet()" title="Back">
+              <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <div class="ewelink-title">${isNew ? 'Create Scene' : 'Edit Scene'}</div>
+            <button class="ewelink-save-link" onclick="NARI.scenes._saveCurrentScene()">Save</button>
           </div>
 
-          <!-- Icon Selector -->
-          <div class="form-group sm">
-            <label>Choose Scene Icon</label>
-            <div class="scene-icon-grid" id="sceneIconGrid">
-              ${iconOptions.map(ico => `
-                <button type="button" class="icon-pick-btn ${scene.icon === ico.id ? 'active' : ''}" data-icon="${ico.id}" onclick="NARI.scenes._selectIcon(this)">
+          <!-- General Metadata Card -->
+          <div class="ewelink-card">
+            <!-- Scene Name -->
+            <div class="ewelink-row">
+              <span class="ewelink-label">Scene Name</span>
+              <input type="text" id="eweSceneName" class="ewelink-value-input" value="${scene.name || ''}" placeholder="Enter scene name" oninput="NARI.scenes._currentEdit.name = this.value">
+            </div>
+
+            <!-- Labels & Homes -->
+            <div class="ewelink-row">
+              <span class="ewelink-label">Labels &amp; Homes</span>
+              <div class="ewelink-value-badge" onclick="NARI.scenes._promptHomeName()">
+                <span>${scene.home || 'Nari home IoT'}</span>
+                <i class="fa-solid fa-chevron-right" style="font-size:0.75rem;"></i>
+              </div>
+            </div>
+
+            <!-- Icon Picker -->
+            <div class="ewelink-row">
+              <span class="ewelink-label">Icon</span>
+              <div class="ewelink-value-badge" onclick="NARI.scenes._toggleIconTray()">
+                <div class="ewelink-icon-preview" id="eweIconPreview" style="background:${scene.color || '#06b6d4'};">
+                  <i class="fa-solid ${scene.icon || 'fa-wand-magic-sparkles'}"></i>
+                </div>
+                <i class="fa-solid fa-chevron-right" style="font-size:0.75rem;"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hidden Tray: Icon & Color Palette -->
+          <div class="ewelink-tray" id="eweIconTray">
+            <div class="small muted" style="margin-bottom:6px;font-weight:700;">CHOOSE ICON:</div>
+            <div class="scene-icon-grid" style="margin-bottom:12px;">
+              ${[
+                { id: "fa-water", label: "Tank" },
+                { id: "fa-plug", label: "Switch" },
+                { id: "fa-sun", label: "Morning" },
+                { id: "fa-moon", label: "Night" },
+                { id: "fa-film", label: "Movie" },
+                { id: "fa-house-chimney", label: "Home" },
+                { id: "fa-door-open", label: "Away" },
+                { id: "fa-champagne-glasses", label: "Party" },
+                { id: "fa-bolt", label: "Energy" },
+                { id: "fa-bed", label: "Sleep" },
+                { id: "fa-fan", label: "Fan" },
+                { id: "fa-lightbulb", label: "Light" }
+              ].map(ico => `
+                <button type="button" class="icon-pick-btn ${scene.icon === ico.id ? 'active' : ''}" onclick="NARI.scenes._selectIcon('${ico.id}')">
                   <i class="fa-solid ${ico.id}"></i>
                   <span>${ico.label}</span>
                 </button>
               `).join("")}
             </div>
-          </div>
 
-          <!-- Color Accent Picker -->
-          <div class="form-group sm">
-            <label>Color Accent</label>
-            <div class="scene-color-row" id="sceneColorRow">
-              ${['#f59e0b', '#10b981', '#6366f1', '#ec4899', '#38bdf8', '#a855f7', '#ef4444'].map(c => `
-                <div class="color-dot ${scene.color === c ? 'active' : ''}" style="background:${c};" data-color="${c}" onclick="NARI.scenes._selectColor(this)"></div>
+            <div class="small muted" style="margin-bottom:6px;font-weight:700;">CHOOSE COLOR ACCENT:</div>
+            <div class="scene-color-row">
+              ${['#06b6d4', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#38bdf8', '#a855f7', '#ef4444'].map(c => `
+                <div class="color-dot ${scene.color === c ? 'active' : ''}" style="background:${c};" onclick="NARI.scenes._selectColor('${c}')"></div>
               `).join("")}
             </div>
           </div>
 
-          <!-- One-to-All Mode Trigger -->
-          <div class="form-group sm">
-            <label><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i> Automatic Mode Trigger (One-to-All)</label>
-            <p class="small muted" style="margin-bottom:6px;">Choose a sensor mode to automatically trigger all switches in this scene:</p>
-            <select id="sceneTriggerSelect" style="width:100%;padding:10px;background:rgba(255,255,255,0.06);color:#fff;border:1px solid var(--card-border);border-radius:10px;">
-              ${triggerOptions.map(t => `
-                <option value="${t.id}" ${scene.triggerMode === t.id ? 'selected' : ''}>
-                  ${t.label} — ${t.desc}
-                </option>
-              `).join("")}
-            </select>
-          </div>
-
-          <!-- Fast Bulk Action (One-to-All Buttons) -->
-          <div class="form-group sm">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <label>Switch Actions in this Scene</label>
-              <div class="fast-action-btns">
-                <button type="button" class="fast-pill" onclick="NARI.scenes._setAllActions(true)">All ON ⚡</button>
-                <button type="button" class="fast-pill" onclick="NARI.scenes._setAllActions(false)">All OFF 🌙</button>
-                <button type="button" class="fast-pill" onclick="NARI.scenes._setAllActions(null)">All Ignore ➖</button>
+          <!-- Section: IF (this triggers) -->
+          <div class="ewelink-section">
+            <div class="ewelink-section-hdr">
+              <div class="ewelink-sec-titles">
+                <span class="ewelink-sec-name">If</span>
+                <span class="ewelink-sec-sub">this triggers</span>
               </div>
             </div>
 
-            <!-- Device Action Matrix -->
-            <div class="scene-device-matrix" id="sceneDeviceMatrix">
-              ${devices.length === 0 ? '<div class="small muted">No smart switches found in home</div>' : devices.map(d => {
-                const key = d.id || d.ip;
-                const currAction = scene.actions[key]; // true, false, or undefined
+            <!-- Trigger Item Card -->
+            <div class="ewelink-item-card">
+              <button class="ewelink-del-item" onclick="NARI.scenes._openTriggerPicker()" title="Change trigger">
+                <i class="fa-solid fa-circle-minus"></i>
+              </button>
+
+              <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, ${scene.color || '#06b6d4'}, #0284c7);">
+                <i class="fa-solid ${trigIcon}"></i>
+              </div>
+
+              <div class="ewelink-item-info" onclick="NARI.scenes._openTriggerPicker()">
+                <div class="ewelink-item-title">${trigger.label || trigger.deviceName || 'Tap to Run'}</div>
+                <div class="ewelink-item-sub">
+                  <span>${trigger.subLabel || 'Condition'}</span>
+                  <i class="fa-solid fa-pen" style="font-size:0.65rem;opacity:0.6;margin-left:4px;"></i>
+                </div>
+                <div class="ewelink-item-home">${scene.home || 'Nari home IoT'}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: THEN (that actions) -->
+          <div class="ewelink-section">
+            <div class="ewelink-section-hdr">
+              <div class="ewelink-sec-titles">
+                <span class="ewelink-sec-name">Then</span>
+                <span class="ewelink-sec-sub">that actions</span>
+              </div>
+              <button class="ewelink-add-action-btn" onclick="NARI.scenes._openAddActionPicker()" title="Add switch action">
+                <i class="fa-solid fa-plus"></i>
+              </button>
+            </div>
+
+            <!-- Actions List -->
+            <div class="ewelink-actions-list" style="display:flex;flex-direction:column;gap:8px;">
+              ${actions.length === 0 ? `
+                <div class="ewelink-empty-card" onclick="NARI.scenes._openAddActionPicker()">
+                  <i class="fa-solid fa-circle-plus" style="font-size:1.4rem;color:#0ea5e9;display:block;margin-bottom:6px;"></i>
+                  <span>Tap to add switches to control</span>
+                </div>
+              ` : actions.map((act, i) => {
+                const isOff = act.state === false;
+                const isOn = act.state === true;
+                const isToggle = act.state === "toggle";
+                const badgeClass = isOff ? 'off' : (isOn ? 'on' : 'toggle');
+                const badgeText = isOff ? 'Turn OFF' : (isOn ? 'Turn ON' : 'Toggle');
+
                 return `
-                  <div class="matrix-row" data-dev-key="${key}">
-                    <span class="dev-name"><i class="fa-solid fa-plug"></i> ${d.name || 'Switch'}</span>
-                    <div class="tri-state-selector">
-                      <button type="button" class="tri-btn on ${currAction === true ? 'active' : ''}" onclick="NARI.scenes._setRowAction(this, true)">ON</button>
-                      <button type="button" class="tri-btn off ${currAction === false ? 'active' : ''}" onclick="NARI.scenes._setRowAction(this, false)">OFF</button>
-                      <button type="button" class="tri-btn ignore ${currAction === undefined ? 'active' : ''}" onclick="NARI.scenes._setRowAction(this, null)">Ignore</button>
+                  <div class="ewelink-item-card">
+                    <button class="ewelink-del-item" onclick="NARI.scenes._removeAction(${i})" title="Remove action">
+                      <i class="fa-solid fa-circle-minus"></i>
+                    </button>
+
+                    <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #0ea5e9, #0284c7);">
+                      <i class="fa-solid fa-plug"></i>
                     </div>
+
+                    <div class="ewelink-item-info">
+                      <div class="ewelink-item-title">${act.deviceName || 'NARI Switch'}</div>
+                      <div class="ewelink-item-sub">
+                        <span class="ewelink-action-tag ${badgeClass}" onclick="NARI.scenes._cycleActionState(${i})">
+                          ${act.actionLabel || badgeText}
+                        </span>
+                      </div>
+                      <div class="ewelink-item-home">${scene.home || 'Nari home IoT'}</div>
+                    </div>
+
+                    <i class="fa-solid fa-bars ewelink-drag-handle"></i>
                   </div>
                 `;
               }).join("")}
             </div>
           </div>
 
-          <!-- Save & Delete Buttons -->
-          <div class="btn-row" style="margin-top:16px;">
-            <button class="btn primary" onclick="NARI.scenes._saveEditedScene('${scene.id}', ${isNew})">
-              <i class="fa-solid fa-check"></i> Save Scene
-            </button>
-            ${!isNew ? `
-              <button class="btn danger" onclick="NARI.scenes._deleteScene('${scene.id}')">
-                <i class="fa-solid fa-trash"></i> Delete
-              </button>
-            ` : ''}
+          <!-- Section: Advanced / Notification -->
+          <div class="ewelink-advanced-card" onclick="NARI.scenes._toggleNotify()">
+            <div>
+              <div style="font-size:0.92rem;font-weight:700;color:var(--text);display:flex;align-items:center;">
+                <span>Receive Alert</span>
+                <span class="ewelink-badge-adv">Advanced</span>
+              </div>
+              <div class="small muted" style="margin-top:2px;">
+                ${scene.notify ? `Send in-app notification when scene triggers` : `Off (Tap to enable)`}
+              </div>
+            </div>
+            <div class="toggle" style="pointer-events:none;">
+              <input type="checkbox" ${scene.notify ? 'checked' : ''}>
+              <span class="track"></span>
+            </div>
           </div>
+
+          <!-- Footer Buttons -->
+          ${!isNew ? `
+            <button class="ewelink-del-btn" onclick="NARI.scenes._deleteScene('${scene.id}')">
+              Delete
+            </button>
+          ` : ''}
+
+          <button class="btn primary" style="margin-top:6px;" onclick="NARI.scenes._saveCurrentScene()">
+            <i class="fa-solid fa-check"></i> Save Scene
+          </button>
         </div>
-      `);
+      `;
+
+      NARI.openSheet(html);
     },
 
-    _selectIcon(btn) {
-      document.querySelectorAll("#sceneIconGrid .icon-pick-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
+    // ---------- Interactive Editor Helpers ----------
+    _toggleIconTray() {
+      const tray = document.getElementById("eweIconTray");
+      if (tray) tray.classList.toggle("show");
     },
 
-    _selectColor(dot) {
-      document.querySelectorAll("#sceneColorRow .color-dot").forEach(d => d.classList.remove("active"));
-      dot.classList.add("active");
+    _selectIcon(iconId) {
+      if (!this._currentEdit) return;
+      this._currentEdit.icon = iconId;
+      const preview = document.getElementById("eweIconPreview");
+      if (preview) {
+        preview.innerHTML = `<i class="fa-solid ${iconId}"></i>`;
+      }
+      this._toggleIconTray();
     },
 
-    _setRowAction(btn, state) {
-      const parent = btn.closest(".tri-state-selector");
-      if (!parent) return;
-      parent.querySelectorAll(".tri-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-    },
-
-    _setAllActions(state) {
-      document.querySelectorAll("#sceneDeviceMatrix .matrix-row").forEach(row => {
-        const btns = row.querySelectorAll(".tri-btn");
-        btns.forEach(b => b.classList.remove("active"));
-        if (state === true) row.querySelector(".tri-btn.on")?.classList.add("active");
-        else if (state === false) row.querySelector(".tri-btn.off")?.classList.add("active");
-        else row.querySelector(".tri-btn.ignore")?.classList.add("active");
+    _selectColor(colorHex) {
+      if (!this._currentEdit) return;
+      this._currentEdit.color = colorHex;
+      const preview = document.getElementById("eweIconPreview");
+      if (preview) {
+        preview.style.background = colorHex;
+      }
+      document.querySelectorAll("#eweIconTray .color-dot").forEach(d => {
+        d.classList.toggle("active", d.getAttribute("onclick").includes(colorHex));
       });
     },
 
-    _saveEditedScene(sceneId, isNew) {
-      const name = (document.getElementById("sceneNameInput")?.value || "").trim();
+    _promptHomeName() {
+      const current = (this._currentEdit && this._currentEdit.home) || "Nari home IoT";
+      const name = prompt("Enter Label or Home Name:", current);
+      if (name && name.trim()) {
+        this._currentEdit.home = name.trim();
+        this._renderSceneEditor();
+      }
+    },
+
+    _toggleNotify() {
+      if (!this._currentEdit) return;
+      this._currentEdit.notify = !this._currentEdit.notify;
+      this._renderSceneEditor();
+    },
+
+    _cycleActionState(index) {
+      if (!this._currentEdit || !this._currentEdit.actions[index]) return;
+      const act = this._currentEdit.actions[index];
+      // Cycle: false (Turn OFF) -> true (Turn ON) -> "toggle" (Toggle)
+      if (act.state === false) {
+        act.state = true;
+        act.actionLabel = "Turn ON";
+      } else if (act.state === true) {
+        act.state = "toggle";
+        act.actionLabel = "Toggle";
+      } else {
+        act.state = false;
+        act.actionLabel = "Motor OFF";
+      }
+      this._renderSceneEditor();
+    },
+
+    _removeAction(index) {
+      if (!this._currentEdit || !this._currentEdit.actions) return;
+      this._currentEdit.actions.splice(index, 1);
+      this._renderSceneEditor();
+    },
+
+    // ---------- Trigger Picker Modal (eWeLink If Builder) ----------
+    _openTriggerPicker() {
+      const devices = store.devices || [];
+
+      let html = `
+        <div class="sheet-header">
+          <div>Select Trigger Condition<span class="sub">When this condition happens:</span></div>
+          <button class="btn-close" onclick="NARI.scenes._renderSceneEditor()">✕</button>
+        </div>
+
+        <div class="ewelink-pick-list">
+          <!-- 1. Tap to Run -->
+          <div class="ewelink-pick-item" onclick="NARI.scenes._setManualTrigger()">
+            <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #f59e0b, #d97706);">
+              <i class="fa-solid fa-hand-pointer"></i>
+            </div>
+            <div>
+              <b style="color:var(--text);font-size:0.92rem;display:block;">Tap to Run (Manual)</b>
+              <span class="small muted">Trigger scene by tapping its card on dashboard</span>
+            </div>
+          </div>
+
+          <!-- 2. Smart Switch State Change Triggers -->
+          <div class="small muted" style="margin-top:10px;font-weight:700;">SMART SWITCH TRIGGER:</div>
+          ${devices.length === 0 ? `
+            <div class="small muted" style="padding:10px;">No smart switches added yet</div>
+          ` : devices.map((d, i) => {
+            const key = d.id || d.ip || d.name;
+            return `
+              <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${d.name || 'Switch'}', 'on')">
+                <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #06b6d4, #0284c7);">
+                  <i class="fa-solid fa-plug"></i>
+                </div>
+                <div style="flex:1;">
+                  <b style="color:var(--text);font-size:0.92rem;display:block;">${d.name || 'Switch'} Turned ON</b>
+                  <span class="small muted">Channel 2 Single-pressed / State Changed</span>
+                </div>
+                <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
+              </div>
+
+              <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${d.name || 'Switch'}', 'off')">
+                <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #ef4444, #b91c1c);">
+                  <i class="fa-solid fa-power-off"></i>
+                </div>
+                <div style="flex:1;">
+                  <b style="color:var(--text);font-size:0.92rem;display:block;">${d.name || 'Switch'} Turned OFF</b>
+                  <span class="small muted">Triggers when this switch is turned off</span>
+                </div>
+                <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
+              </div>
+            `;
+          }).join("")}
+
+          <!-- 3. Sensor / Gesture Modes -->
+          <div class="small muted" style="margin-top:10px;font-weight:700;">GESTURE &amp; SENSOR MODES:</div>
+          <div class="ewelink-pick-item" onclick="NARI.scenes._setSensorTrigger('clap', 'Double Clap 👏', 'Clap twice near phone')">
+            <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #ec4899, #be185d);">
+              <i class="fa-solid fa-hands-clapping"></i>
+            </div>
+            <div>
+              <b style="color:var(--text);font-size:0.92rem;display:block;">Double Clap 👏</b>
+              <span class="small muted">Clap hands twice near phone to trigger</span>
+            </div>
+          </div>
+
+          <div class="ewelink-pick-item" onclick="NARI.scenes._setSensorTrigger('flip', 'Flip Phone Down 📱', 'Place phone face-down (Good Night)')">
+            <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #6366f1, #4338ca);">
+              <i class="fa-solid fa-mobile-screen"></i>
+            </div>
+            <div>
+              <b style="color:var(--text);font-size:0.92rem;display:block;">Flip Phone Down 📱</b>
+              <span class="small muted">Place phone face-down on table or bed</span>
+            </div>
+          </div>
+
+          <div class="ewelink-pick-item" onclick="NARI.scenes._setSensorTrigger('shake', 'Shake Phone 📳', 'Firm phone shake')">
+            <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #a855f7, #7e22ce);">
+              <i class="fa-solid fa-hand"></i>
+            </div>
+            <div>
+              <b style="color:var(--text);font-size:0.92rem;display:block;">Shake Phone 📳</b>
+              <span class="small muted">Give phone a firm shake</span>
+            </div>
+          </div>
+
+          <div class="ewelink-pick-item" onclick="NARI.scenes._setSensorTrigger('presence', 'Arriving Home 📍', 'Connect to home Wi-Fi')">
+            <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #10b981, #047857);">
+              <i class="fa-solid fa-house-chimney"></i>
+            </div>
+            <div>
+              <b style="color:var(--text);font-size:0.92rem;display:block;">Arriving Home 📍</b>
+              <span class="small muted">Triggers automatically when connecting to home Wi-Fi</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      NARI.openSheet(html);
+    },
+
+    _setManualTrigger() {
+      if (!this._currentEdit) return;
+      this._currentEdit.trigger = {
+        type: "manual",
+        label: "Tap to Run",
+        subLabel: "1-Tap from Dashboard"
+      };
+      this._renderSceneEditor();
+    },
+
+    _setDeviceTrigger(devKey, devName, condition) {
+      if (!this._currentEdit) return;
+      const condLabel = condition === "on" ? "Channel2 Single-pressed" : "When switch turns OFF";
+      this._currentEdit.trigger = {
+        type: "device",
+        deviceId: devKey,
+        deviceName: devName,
+        condition,
+        label: devName,
+        subLabel: condLabel
+      };
+      this._renderSceneEditor();
+    },
+
+    _setSensorTrigger(mode, label, subLabel) {
+      if (!this._currentEdit) return;
+      this._currentEdit.trigger = {
+        type: "sensor",
+        mode,
+        label,
+        subLabel
+      };
+      this._renderSceneEditor();
+    },
+
+    // ---------- Action Picker Modal (eWeLink Then Builder) ----------
+    _openAddActionPicker() {
+      const devices = store.devices || [];
+
+      let html = `
+        <div class="sheet-header">
+          <div>Add Action Device<span class="sub">Select smart switch to control:</span></div>
+          <button class="btn-close" onclick="NARI.scenes._renderSceneEditor()">✕</button>
+        </div>
+
+        <div class="ewelink-pick-list">
+          ${devices.length === 0 ? `
+            <div class="small muted" style="padding:14px;text-align:center;">No switches found in your home</div>
+          ` : devices.map((d, i) => {
+            const key = d.id || d.ip || d.name;
+            return `
+              <div class="ewelink-pick-item" onclick="NARI.scenes._addAction('${key}', '${d.name || 'Switch'}')">
+                <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #0ea5e9, #0284c7);">
+                  <i class="fa-solid fa-plug"></i>
+                </div>
+                <div style="flex:1;">
+                  <b style="color:var(--text);font-size:0.95rem;display:block;">${d.name || 'Switch'}</b>
+                  <span class="small muted">${d.room || 'Nari home IoT'} &bull; ${d.ip || 'Online'}</span>
+                </div>
+                <div class="ewelink-add-action-btn" style="width:26px;height:26px;font-size:0.8rem;">
+                  <i class="fa-solid fa-plus"></i>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+
+      NARI.openSheet(html);
+    },
+
+    _addAction(devKey, devName) {
+      if (!this._currentEdit) return;
+      if (!Array.isArray(this._currentEdit.actions)) this._currentEdit.actions = [];
+
+      // Add with default action = false (Turn OFF) or toggle
+      this._currentEdit.actions.push({
+        deviceId: devKey,
+        deviceName: devName,
+        state: false,
+        actionLabel: "Motor OFF"
+      });
+
+      this._renderSceneEditor();
+    },
+
+    // ---------- Save & Delete Handlers ----------
+    _saveCurrentScene() {
+      const scene = this._currentEdit;
+      if (!scene) return;
+
+      const nameInput = document.getElementById("eweSceneName");
+      const name = (nameInput ? nameInput.value : scene.name || "").trim();
       if (!name) {
         alert("Please enter a scene name.");
         return;
       }
+      scene.name = name;
 
-      const activeIconBtn = document.querySelector("#sceneIconGrid .icon-pick-btn.active");
-      const icon = activeIconBtn ? activeIconBtn.getAttribute("data-icon") : "fa-wand-magic-sparkles";
-
-      const activeColorDot = document.querySelector("#sceneColorRow .color-dot.active");
-      const color = activeColorDot ? activeColorDot.getAttribute("data-color") : "#10b981";
-
-      const triggerMode = document.getElementById("sceneTriggerSelect")?.value || "none";
-
-      const actions = {};
-      document.querySelectorAll("#sceneDeviceMatrix .matrix-row").forEach(row => {
-        const key = row.getAttribute("data-dev-key");
-        const onActive = row.querySelector(".tri-btn.on.active");
-        const offActive = row.querySelector(".tri-btn.off.active");
-        if (onActive) actions[key] = true;
-        else if (offActive) actions[key] = false;
-        // Ignore is skipped from actions
-      });
-
-      const updated = {
-        id: sceneId,
-        name,
-        icon,
-        color,
-        triggerMode,
-        actions,
-        subtitle: Object.keys(actions).length > 0 ? `${Object.keys(actions).length} switches set` : "Custom scene"
-      };
-
-      if (isNew) {
-        this.list.push(updated);
+      // Update subtitle summary
+      if (scene.trigger && scene.trigger.label) {
+        scene.subtitle = `If ${scene.trigger.label} -> ${scene.actions.length} action(s)`;
       } else {
-        const idx = this.list.findIndex(s => s.id === sceneId);
-        if (idx >= 0) this.list[idx] = updated;
+        scene.subtitle = `${scene.actions.length} switches set`;
+      }
+
+      delete scene.isNew;
+
+      const idx = this.list.findIndex(s => s.id === scene.id);
+      if (idx >= 0) {
+        this.list[idx] = scene;
+      } else {
+        this.list.push(scene);
       }
 
       saveLocalScenes(this.list);
       if (NARI.closeSheet) NARI.closeSheet();
-      if (NARI.showToast) NARI.showToast(`Scene "${name}" saved!`, "ok");
+      if (NARI.showToast) NARI.showToast(`✅ Scene "${name}" saved!`, "ok");
 
       if (NARI.app && NARI.app.renderDeviceCards) {
         NARI.app.renderDeviceCards();
@@ -421,7 +906,7 @@
     },
 
     _deleteScene(sceneId) {
-      if (!confirm("Are you sure you want to delete this scene?")) return;
+      if (!confirm("Are you sure you want to delete this smart scene?")) return;
       this.list = this.list.filter(s => s.id !== sceneId);
       saveLocalScenes(this.list);
       if (NARI.closeSheet) NARI.closeSheet();
@@ -460,24 +945,24 @@
             </div>
           </div>
 
-          <!-- Horizontal Scenes Carousel (Visual Apple Home style) -->
+          <!-- Horizontal Scenes Carousel (Visual Apple Home / eWeLink style) -->
           <div class="scenes-carousel">
             ${this.list.map(s => {
               const isActive = s.id === currentActive;
-              const hasTrigger = s.triggerMode && s.triggerMode !== "none";
-              const triggerLabels = {
-                clap: "👏 Clap",
-                flip: "📱 Flip",
-                shake: "📳 Shake",
-                presence: "📍 Arrive",
-                voice: "🗣️ Voice"
-              };
+              let triggerTag = "";
+              if (s.trigger) {
+                if (s.trigger.type === "device") triggerTag = `⚡ ${s.trigger.label || 'Switch'}`;
+                else if (s.trigger.mode === "clap") triggerTag = `👏 Clap`;
+                else if (s.trigger.mode === "flip") triggerTag = `📱 Flip`;
+                else if (s.trigger.mode === "shake") triggerTag = `📳 Shake`;
+                else if (s.trigger.mode === "presence") triggerTag = `📍 Arrive`;
+              }
 
               return `
-                <div class="scene-card ${isActive ? 'active' : ''}" style="--scene-color:${s.color};" onclick="NARI.scenes.executeScene('${s.id}')">
+                <div class="scene-card ${isActive ? 'active' : ''}" style="--scene-color:${s.color || 'var(--primary)'};" onclick="NARI.scenes.executeScene('${s.id}')">
                   <div class="scene-top-row">
-                    <div class="scene-icon-badge" style="background:${s.color};">
-                      <i class="fa-solid ${s.icon}"></i>
+                    <div class="scene-icon-badge" style="background:${s.color || 'var(--primary)'};">
+                      <i class="fa-solid ${s.icon || 'fa-wand-magic-sparkles'}"></i>
                     </div>
                     ${isSuper ? `
                       <button class="scene-edit-btn" onclick="event.stopPropagation(); NARI.scenes.openSceneEditor('${s.id}')" title="Edit Scene (Home Admin)">
@@ -489,9 +974,9 @@
                     <b class="scene-name">${s.name}</b>
                     <span class="scene-sub">${s.subtitle || '1-Tap Scene'}</span>
                   </div>
-                  ${hasTrigger ? `
+                  ${triggerTag ? `
                     <div class="scene-trigger-tag">
-                      <i class="fa-solid fa-bolt"></i> ${triggerLabels[s.triggerMode] || s.triggerMode}
+                      ${triggerTag}
                     </div>
                   ` : ''}
                 </div>

@@ -1048,77 +1048,430 @@ details[open] summary { margin-bottom: 8px; }
   transform: scale(1.1);
 }
 
-.fast-action-btns {
-  display: flex;
-  gap: 4px;
-}
-.fast-pill {
-  padding: 3px 7px;
-  border-radius: 6px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  border: 1px solid var(--card-border);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-muted);
-}
-
-/* Device Matrix in Scene Editor */
-.scene-device-matrix {
+/* ========================================================
+   eWeLink-Style Creative Smart Scene Builder
+   ======================================================== */
+.ewelink-editor {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 160px;
-  overflow-y: auto;
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-  padding: 6px;
-  background: rgba(0, 0, 0, 0.2);
+  gap: 16px;
+  padding: 2px 2px 14px;
 }
-.matrix-row {
+
+.ewelink-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 0.76rem;
+  padding: 4px 2px 12px;
+  border-bottom: 1px solid var(--card-border);
+  margin-bottom: 6px;
 }
-.matrix-row .dev-name {
+
+.ewelink-back-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--card-border);
+  color: var(--text);
+  font-size: 1rem;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.ewelink-back-btn:active {
+  transform: scale(0.92);
+}
+
+.ewelink-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+body.theme-light .ewelink-title {
+  color: #0f172a;
+}
+
+.ewelink-save-link {
+  background: transparent;
+  border: none;
+  color: #38bdf8;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.ewelink-save-link:active {
+  opacity: 0.7;
+}
+
+/* Metadata Card */
+.ewelink-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  padding: 2px 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+body.theme-light .ewelink-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.ewelink-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 0.92rem;
+}
+.ewelink-row:last-child {
+  border-bottom: none;
+}
+
+.ewelink-label {
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+body.theme-light .ewelink-label {
+  color: #1e293b;
+}
+
+input[type="text"].ewelink-value-input {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  text-align: right;
+  font-size: 0.95rem;
   font-weight: 600;
-  color: #f4f4f5;
+  color: var(--text-muted);
+  width: 60%;
+  padding: 0 !important;
+}
+input[type="text"].ewelink-value-input:focus {
+  color: var(--accent);
+}
+
+.ewelink-value-badge {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.tri-state-selector {
-  display: flex;
-  gap: 3px;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 2px;
-  border-radius: 8px;
-  border: 1px solid var(--card-border);
-}
-.tri-btn {
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: none;
-  background: none;
-  font-size: 0.66rem;
-  font-weight: 700;
   color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
 }
-.tri-btn.on.active {
-  background: var(--success);
+
+.ewelink-icon-preview {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #10b981, #06b6d4);
   color: #fff;
-  box-shadow: 0 0 8px var(--success);
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
-.tri-btn.off.active {
-  background: rgba(239, 68, 68, 0.8);
-  color: #fff;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+
+/* Sections: IF and THEN */
+.ewelink-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
 }
-.tri-btn.ignore.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #f4f4f5;
+
+.ewelink-section-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
 }
+
+.ewelink-sec-titles {
+  display: flex;
+  flex-direction: column;
+}
+
+.ewelink-sec-name {
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.1;
+}
+body.theme-light .ewelink-sec-name {
+  color: #0f172a;
+}
+
+.ewelink-sec-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.ewelink-add-action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease);
+}
+.ewelink-add-action-btn:active {
+  transform: scale(0.9);
+}
+
+/* Action & Trigger Item Cards */
+.ewelink-item-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, background 0.2s;
+  position: relative;
+}
+body.theme-light .ewelink-item-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.ewelink-del-item {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  font-size: 1.35rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 2px;
+  flex: none;
+}
+.ewelink-del-item:active {
+  transform: scale(0.85);
+}
+
+.ewelink-dev-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  flex: none;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+}
+
+.ewelink-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.ewelink-item-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.theme-light .ewelink-item-title {
+  color: #0f172a;
+}
+
+.ewelink-item-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ewelink-item-home {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+body.theme-light .ewelink-item-home {
+  color: #94a3b8;
+}
+
+.ewelink-action-tag {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  white-space: nowrap;
+  user-select: none;
+  transition: transform 0.15s, background 0.15s;
+}
+.ewelink-action-tag:active {
+  transform: scale(0.95);
+}
+.ewelink-action-tag.on {
+  background: rgba(16, 185, 129, 0.22);
+  color: #34d399;
+  border-color: #10b981;
+}
+.ewelink-action-tag.off {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  border-color: #ef4444;
+}
+.ewelink-action-tag.toggle {
+  background: rgba(14, 165, 233, 0.22);
+  color: #38bdf8;
+  border-color: #0ea5e9;
+}
+
+.ewelink-drag-handle {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 1.15rem;
+  padding: 4px 6px;
+  flex: none;
+}
+body.theme-light .ewelink-drag-handle {
+  color: #cbd5e1;
+}
+
+.ewelink-empty-card {
+  padding: 18px 14px;
+  border-radius: 16px;
+  border: 1px dashed var(--card-border);
+  background: rgba(255, 255, 255, 0.02);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.ewelink-empty-card:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.ewelink-advanced-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--card-border);
+  cursor: pointer;
+  margin-top: 4px;
+}
+body.theme-light .ewelink-advanced-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ewelink-badge-adv {
+  background: rgba(14, 165, 233, 0.16);
+  color: #38bdf8;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+body.theme-light .ewelink-badge-adv {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+/* Delete Button */
+.ewelink-del-btn {
+  border: 1.5px solid #ef4444;
+  background: transparent;
+  color: #ef4444;
+  border-radius: 999px;
+  padding: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  margin-top: 8px;
+}
+.ewelink-del-btn:active {
+  background: rgba(239, 68, 68, 0.1);
+  transform: scale(0.98);
+}
+
+/* Icon & Color Selector Tray */
+.ewelink-tray {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 12px;
+  margin-top: 10px;
+  display: none;
+  animation: pop 0.25s var(--ease);
+}
+.ewelink-tray.show {
+  display: block;
+}
+
+/* Picker List for Triggers & Actions */
+.ewelink-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+.ewelink-pick-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+.ewelink-pick-item:hover, .ewelink-pick-item:active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+body.theme-light .ewelink-pick-item {
+  background: #ffffff;
+}
+body.theme-light .ewelink-pick-item:hover {
+  background: #f1f5f9;
+}
+
 
