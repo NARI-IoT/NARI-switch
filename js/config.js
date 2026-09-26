@@ -49,10 +49,10 @@
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem("nari_settings") || "{}"); } catch (e) { saved = {}; }
     // Legacy theme key
-    if (!saved.theme && localStorage.getItem("nari_theme")) saved.theme = localStorage.getItem("nari_theme");
     const merged = Object.assign({}, DEFAULT_SETTINGS, saved);
-    // An unconfigured broker placeholder saved earlier should not shadow a newer deployment default.
-    if (/YOUR-BROKER-HOST/.test(merged.brokerUrl || "") && DEFAULT_SETTINGS.brokerUrl && !/YOUR-BROKER-HOST/.test(DEFAULT_SETTINGS.brokerUrl)) merged.brokerUrl = DEFAULT_SETTINGS.brokerUrl;
+    // Ensure deployment defaults from config.local.js are not shadowed by empty saved strings
+    if (!merged.lanToken && DEFAULT_SETTINGS.lanToken) merged.lanToken = DEFAULT_SETTINGS.lanToken;
+    if (!merged.brokerUrl || /YOUR-BROKER-HOST/.test(merged.brokerUrl)) merged.brokerUrl = DEFAULT_SETTINGS.brokerUrl;
     return merged;
   }
  

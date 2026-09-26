@@ -61,7 +61,7 @@
     if (transport.lanBlocked) {
       html += `<div class="pill warn" style="cursor:pointer;" onclick="NARI.app.showLanUnlockModal()" title="Click to see how to enable fast LAN"><span class="led"></span>LAN: Mixed Content Blocked <i class="fa-solid fa-circle-question" style="margin-left:4px;font-size:0.7rem;"></i></div>`;
     } else {
-      const lanCount = store.devices.filter(d => transport.lanFresh(d)).length;
+      const lanCount = store.devices.filter(d => transport.lanFresh(d) || d.link === 'lan-grace').length;
       html += `<div class="pill ${lanCount > 0 ? 'ok' : ''}"><span class="led"></span>LAN: ${lanCount} Active</div>`;
     }
 
@@ -122,7 +122,12 @@
     dom.deviceList.innerHTML = scenesHtml + store.devices.map((dev, i) => {
       const isOnline = dev.isOnline !== false;
       const isVerifying = !!dev._isVerifying;
-      const hasBg = !!dev.bgPhoto;
+      // Guard: if bgPhoto is invalid/broken, clear it so card doesn't show broken image
+      const hasBg = !!dev.bgPhoto && /^https?:\/\//.test(dev.bgPhoto);
+      // Guard: if name was accidentally stored as a URL or is empty, show safe fallback
+      const safeName = (dev.name && !/^https?:\/\//.test(dev.name))
+        ? dev.name.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))
+        : 'Switch ' + (i + 1);
       const activeTriggers = Object.keys(dev.triggers || {}).filter(k => dev.triggers[k].enabled);
 
       return `
@@ -145,11 +150,16 @@
             </div>
 
             <div class="card-info">
-              <h3>${dev.name}</h3>
+              <h3>${safeName}</h3>
               <p>
-                <span class="link-tag ${transport.lanFresh(dev) ? 'lan' : (transport.cloudConnected ? 'cloud' : 'none')}">
-                  ${transport.lanFresh(dev) ? 'LAN' : (transport.cloudConnected ? 'Cloud' : 'Offline')}
-                </span>
+                ${(() => {
+                  const link = dev.link || (transport.lanFresh(dev) ? 'lan' : (transport.cloudConnected ? 'cloud' : 'none'));
+                  if (link === 'lan')         return `<span class="link-tag lan">LAN</span>`;
+                  if (link === 'lan-grace')   return `<span class="link-tag lan" style="opacity:.7" title="Last seen on LAN — recovering">LAN ⟳</span>`;
+                  if (link === 'cloud')       return `<span class="link-tag cloud">Cloud</span>`;
+                  if (link === 'cloud-unverified') return `<span class="link-tag cloud" style="opacity:.7">Cloud ·</span>`;
+                  return `<span class="link-tag none">Offline</span>`;
+                })()} 
                 ${dev.lanRssi ? `<span class="small muted">${dev.lanRssi} dBm</span>` : ''}
               </p>
             </div>
@@ -210,6 +220,10 @@
           <input type="text" id="devName" value="${dev.name}">
         </div>
         <div class="form-group">
+          <label>Device IP Address (from Wi-Fi / Fing)</label>
+          <input type="text" id="devIp" value="${dev.ip || ''}" placeholder="e.g. 192.168.1.105">
+        </div>
+        <div class="form-group">
           <label>Boot State (On Power Restore)</label>
           <select id="bootState">
             <option value="LAST" ${dev.bootState === 'LAST' ? 'selected' : ''}>LAST STATE (Resume)</option>
@@ -234,7 +248,10 @@
         </div>
         <div class="btn-row" style="margin-top:14px;">
           <button class="btn primary" onclick="NARI.app.saveDeviceSettings(${index})">Save</button>
-          <button class="btn danger" onclick="NARI.app.deleteDevice(${index})">Delete</button>
+          ${(NARI.sharing && NARI.sharing.canDeleteSwitch && !NARI.sharing.canDeleteSwitch(dev))
+            ? '<span class="small muted" style="padding:6px 12px;background:rgba(255,255,255,0.04);border-radius:8px;display:flex;align-items:center;gap:5px;"><i class="fa-solid fa-lock" style="color:var(--warn);"></i> Admin Delete Only</span>'
+            : `<button class="btn danger" onclick="NARI.app.deleteDevice(${index})">Delete</button>`
+          }
         </div>
       `);
     },
@@ -335,18 +352,26 @@
     saveDeviceSettings(index) {
       const dev = store.devices[index];
       dev.name = document.getElementById("devName").value.trim() || dev.name;
+      const ipInput = document.getElementById("devIp");
+      if (ipInput) dev.ip = ipInput.value.trim();
       dev.bootState = document.getElementById("bootState").value;
       dev.bgPhoto = document.getElementById("bgPhotoUrl").value.trim() || null;
       transport.setBootState(dev, dev.bootState);
       store.save();
       renderDeviceCards();
+      transport.pollAll();
       closeSheet();
     },
 
     deleteDevice(index) {
-      if (confirm(`Remove "${store.devices[index].name}"?`)) {
+      const dev = store.devices[index];
+      if (NARI.sharing && NARI.sharing.canDeleteSwitch && !NARI.sharing.canDeleteSwitch(dev)) {
+        return showToast("Only Home Admin can delete this switch", "warn");
+      }
+      if (confirm(`Remove "${dev.name}"?`)) {
         store.remove(index);
         closeSheet();
+        showToast("Device deleted", "ok");
       }
     },
 
@@ -724,7 +749,90 @@
     `);
   };
 
-  NARI.app.signIn = () => store.auth && store.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => showToast(e.message, "error"));
+  NARI.app.openAuthModal = () => {
+    openSheet(`
+      <div class="sheet-header">
+        <div>Customer Account<span class="sub">Sign in to backup &amp; sync your switches</span></div>
+        <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px;">
+        <button class="btn primary" style="background:#fff;color:#1e293b;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);" onclick="NARI.app.signInGoogle()">
+          <i class="fa-brands fa-google" style="color:#ea4335;font-size:18px;"></i> Continue with Google
+        </button>
+        <div style="text-align:center;font-size:11px;color:rgba(255,255,255,0.4);margin:6px 0;letter-spacing:1px;font-weight:600;">
+          ─── OR WITH EMAIL ───
+        </div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label>Email Address</label>
+          <input type="email" id="authEmail" placeholder="customer@example.com" autocomplete="email">
+        </div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label>Password</label>
+          <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <button class="btn secondary" style="flex:1;" onclick="NARI.app.signInEmail(false)">
+            <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In
+          </button>
+          <button class="btn secondary" style="flex:1;" onclick="NARI.app.signInEmail(true)">
+            <i class="fa-solid fa-user-plus"></i> Register
+          </button>
+        </div>
+        <button class="btn" style="background:none;border:none;color:var(--text-muted,#94a3b8);font-size:12px;cursor:pointer;padding:6px;text-align:center;" onclick="NARI.app.forgotPassword()">
+          Forgot Password?
+        </button>
+      </div>
+    `);
+  };
+
+  NARI.app.signInGoogle = async () => {
+    if (!store.auth) return showToast("Firebase Auth not loaded", "error");
+    try {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await store.auth.signInWithPopup(provider);
+      closeSheet();
+      showToast("Signed in with Google", "ok");
+    } catch (e) {
+      if (e.code === "auth/popup-blocked" || e.code === "auth/cancelled-popup-request") {
+        store.auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+      } else {
+        showToast(e.message || "Google Sign-in failed", "error");
+      }
+    }
+  };
+
+  NARI.app.signInEmail = async (isNew = false) => {
+    if (!store.auth) return showToast("Firebase Auth not loaded", "error");
+    const email = (document.getElementById("authEmail")?.value || "").trim();
+    const pass = (document.getElementById("authPassword")?.value || "").trim();
+    if (!email || !pass) return showToast("Please enter email & password", "warn");
+    try {
+      if (isNew) {
+        await store.auth.createUserWithEmailAndPassword(email, pass);
+        showToast("Account created successfully!", "ok");
+      } else {
+        await store.auth.signInWithEmailAndPassword(email, pass);
+        showToast("Signed in successfully", "ok");
+      }
+      closeSheet();
+    } catch (e) {
+      showToast(e.message || "Authentication failed", "error");
+    }
+  };
+
+  NARI.app.forgotPassword = async () => {
+    if (!store.auth) return;
+    const email = (document.getElementById("authEmail")?.value || "").trim();
+    if (!email) return showToast("Enter your email above first", "warn");
+    try {
+      await store.auth.sendPasswordResetEmail(email);
+      showToast("Password reset link sent to " + email, "ok");
+    } catch (e) {
+      showToast(e.message || "Could not send reset link", "error");
+    }
+  };
+
+  NARI.app.signIn = () => NARI.app.openAuthModal();
   NARI.app.signOut = () => store.auth && store.auth.signOut();
 
   // --- Master Controls (Option 3) ---

@@ -30,9 +30,16 @@
 </head>
 <body>
 
+  <!-- Left Slide-Out Sidebar Drawer -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <aside class="left-sidebar" id="leftSidebar"></aside>
+
   <!-- Top App Header -->
   <header>
     <div class="brand">
+      <button class="icon-btn" id="btnMenu" title="Family &amp; Sharing Menu" style="margin-right:2px;">
+        <i class="fa-solid fa-bars"></i>
+      </button>
       <div class="logo"><i class="fa-solid fa-house-signal"></i></div>
       <div>
         NARI Home
@@ -49,7 +56,7 @@
         <i class="fa-solid fa-heart-pulse"></i>
         <span class="dot hidden" id="diagDot"></span>
       </button>
-      <button class="icon-btn" id="btnShare" title="Family & Guest Share">
+      <button class="icon-btn" id="btnShare" title="Family &amp; Guest Share">
         <i class="fa-solid fa-qrcode"></i>
       </button>
       <button class="icon-btn" id="btnSettings" title="Settings">
@@ -91,5 +98,6 @@
   <script src="js/audio.js"></script>
   <script src="js/sensors.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/sharing.js"></script>
 </body>
 </html>

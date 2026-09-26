@@ -16,7 +16,9 @@
   const { store, bus } = NARI;
  
   const CLOUD_STALE_MS = 3 * 60 * 1000;
-  const LAN_FRESH_MS = 20 * 1000;
+  const LAN_FRESH_MS   = 20 * 1000;   // ping was within 20 s → "fresh"
+  const LAN_GRACE_MS   = 55 * 1000;   // keep card online up to 55 s after last OK ping (covers missed polls)
+  const LAN_BAD_LIMIT  = 3;           // consecutive failures before declaring LAN down
  
   const transport = {
     client: null,
@@ -24,12 +26,13 @@
     cloudError: "",
     lanBlocked: false,       // true when the browser will refuse http:// LAN calls (mixed content)
     pendingEcho: {},         // identifier -> timeout id (waiting for the device to echo its new state)
+    _lanBadCount: {},        // identifier -> consecutive failed polls
  
     // ---------------- MQTT ----------------
     connectCloud() {
       const s = NARI.settings;
       if (this.client) { try { this.client.end(true); } catch (e) {} this.client = null; }
- 
+
       if (!s.brokerUrl || /YOUR-BROKER-HOST/.test(s.brokerUrl)) {
         this._setCloud("unconfigured", "Set your wss:// broker URL in Settings");
         return;
@@ -42,39 +45,72 @@
         this._setCloud("error", "MQTT library failed to load");
         return;
       }
- 
+
       this._setCloud("connecting", "");
+      this._mqttAttempts = (this._mqttAttempts || 0) + 1;
+      // Exponential back-off: 3 s → 6 s → 12 s … capped at 60 s
+      const reconnectPeriod = Math.min(3000 * Math.pow(2, Math.min(this._mqttAttempts - 1, 4)), 60000);
       try {
         const client = mqtt.connect(s.brokerUrl, {
           clientId: "nari_web_" + Math.random().toString(16).slice(2, 10),
           username: s.mqttUser || undefined,
           password: s.mqttPass || undefined,
+          protocolVersion: 4,   // MQTT v3.1.1 — compatible with all Mosquitto versions
+          protocolId: "MQTT",
           clean: true,
-          keepalive: 30,
-          reconnectPeriod: 3000,
-          connectTimeout: 8000
+          keepalive: 60,
+          reconnectPeriod,
+          connectTimeout: 15000
         });
         this.client = client;
- 
+
         client.on("connect", () => {
+          this._mqttAttempts = 0; // reset back-off on success
           this._setCloud("connected", "");
-          client.subscribe(`${s.topicPrefix}/+/state`, { qos: 0 });
-          client.subscribe(`${s.topicPrefix}/+/status`, { qos: 0 });
-          client.subscribe(`${s.topicPrefix}/+/ota/error`, { qos: 0 });
+          this.resubscribeDevices();
         });
         client.on("message", (topic, msg) => this._onMessage(topic, msg.toString().trim()));
         client.on("reconnect", () => this._setCloud("reconnecting", ""));
         client.on("offline", () => this._setCloud("offline", ""));
         client.on("close", () => { if (this.cloudState === "connected") this._setCloud("offline", ""); });
         client.on("error", (err) => {
-          console.error("MQTT error:", err);
+          console.warn("MQTT error:", err && err.message || err);
           this._setCloud("error", (err && err.message) || "connection error");
         });
       } catch (e) {
         this._setCloud("error", e.message || String(e));
       }
     },
+
+    // Reconnect when tab becomes visible again (catches sleep/resume cycles)
+    _bindVisibility() {
+      if (this._visibilityBound) return;
+      this._visibilityBound = true;
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && this.cloudState !== "connected" && this.cloudState !== "unconfigured" && this.cloudState !== "blocked") {
+          console.log("[NARI] tab visible — reconnecting MQTT");
+          this.connectCloud();
+        }
+      });
+    },
+
  
+    resubscribeDevices() {
+      if (!this.client || !this.cloudConnected) return;
+      const s = NARI.settings;
+      if (!s || !s.topicPrefix) return;
+      if (store.devices && store.devices.length > 0) {
+        store.devices.forEach(dev => {
+          const id = store.identifierOf(dev);
+          if (id) {
+            this.client.subscribe(`${s.topicPrefix}/${id}/state`, { qos: 0 });
+            this.client.subscribe(`${s.topicPrefix}/${id}/status`, { qos: 0 });
+            this.client.subscribe(`${s.topicPrefix}/${id}/ota/error`, { qos: 0 });
+          }
+        });
+      }
+    },
+
     disconnectCloud() {
       if (this.client) { try { this.client.end(true); } catch (e) {} this.client = null; }
       this._setCloud("offline", "");
@@ -280,14 +316,24 @@
     _recomputeOnline(dev) {
       const now = Date.now();
       const lanFresh = this.lanFresh(dev);
+      // Grace period: if we had a LAN response in the last LAN_GRACE_MS, stay online even if the
+      // last poll timed out (covers momentary Wi-Fi blips and the ESP-01S being briefly busy).
+      const lanGrace = dev.lastLanOk && now - dev.lastLanOk < LAN_GRACE_MS;
       const cloudFresh = dev.lastCloudSeen && now - dev.lastCloudSeen < CLOUD_STALE_MS;
+
       if (lanFresh) { dev.isOnline = true; dev.link = "lan"; return; }
+      if (lanGrace) {
+        // LAN was up very recently — stay online but mark as "recovering"
+        dev.isOnline = true; dev.link = "lan-grace"; return;
+      }
       if (this.cloudConnected) {
         if (dev.cloudOnline === false) { dev.isOnline = false; dev.link = "cloud-offline"; return; }
         dev.isOnline = true;
         dev.link = cloudFresh || dev.cloudOnline === true ? "cloud" : "cloud-unverified";
         return;
       }
+      // Neither LAN fresh nor cloud connected. Only declare offline after LAN_GRACE_MS has expired.
+      if (lanGrace) { dev.isOnline = true; dev.link = "lan-grace"; return; }
       dev.isOnline = false;
       dev.link = "none";
     },
@@ -301,10 +347,20 @@
         for (let i = 0; i < devs.length; i++) {
           const dev = devs[i];
           if (dev._isVerifying) continue;
+          const key = store.identifierOf(dev);
           const before = `${dev.isOnline}|${dev.link}|${dev.lanRssi}|${dev.state}`;
           if (this.lanAllowed(dev)) {
-            try { await this.lanPing(dev, 1200); }
-            catch (e) { dev.lanOk = false; dev.lanRssi = null; dev.rtt = null; }
+            try {
+              await this.lanPing(dev, 1400);
+              // Ping succeeded: reset bad-count
+              this._lanBadCount[key] = 0;
+            } catch (e) {
+              this._lanBadCount[key] = (this._lanBadCount[key] || 0) + 1;
+              // Only clear lanOk after LAN_BAD_LIMIT consecutive failures (prevents one missed poll → offline)
+              if (this._lanBadCount[key] >= LAN_BAD_LIMIT) {
+                dev.lanOk = false; dev.lanRssi = null; dev.rtt = null;
+              }
+            }
           } else { dev.lanOk = false; }
           this._recomputeOnline(dev);
           if (before !== `${dev.isOnline}|${dev.link}|${dev.lanRssi}|${dev.state}`) bus.emit("device:updated", i);
@@ -421,6 +477,10 @@
  
   NARI.transport = transport;
   NARI.parseState = parseState;
+
+  // Bind tab-visibility reconnect as soon as transport is available
+  transport._bindVisibility();
+  bus.on("devices:changed", () => transport.resubscribeDevices());
 })(window);
 
 

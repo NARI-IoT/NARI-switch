@@ -32,9 +32,19 @@
     };
   }
  
+  function generateGuid() {
+    try {
+      const arr = new Uint8Array(8);
+      crypto.getRandomValues(arr);
+      return "sw_" + Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join("");
+    } catch (e) {
+      return "sw_" + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+    }
+  }
+
   function newDevice(name, ip, id) {
     return {
-      id: id || "",
+      id: id || generateGuid(),
       name: name || "Switch",
       ip: ip || "",
       state: false,
@@ -47,13 +57,16 @@
       lastLanOk: 0,
       lastCloudSeen: 0,
       cloudOnline: null,
+      updatedAt: Date.now(),
       triggers: defaultTriggers()
     };
   }
  
   // Upgrade devices saved by the previous single-"mode" version of the app.
   function migrateDevice(raw) {
-    const dev = Object.assign(newDevice(raw.name, raw.ip, raw.id), raw);
+    const dev = Object.assign(newDevice(raw.name, raw.ip, raw.id || generateGuid()), raw);
+    if (!dev.id) dev.id = generateGuid();
+    if (!dev.updatedAt) dev.updatedAt = Date.now();
     const t = Object.assign(defaultTriggers(), raw.triggers || {});
     // deep-merge each trigger so newly added keys get defaults
     const defs = defaultTriggers();
@@ -125,17 +138,22 @@
  
     // Debounced persistence: localStorage immediately, Firestore after 800ms of quiet.
     save() {
-      const clean = this.devices.map(d => { const c = Object.assign({}, d); delete c._isVerifying; return c; });
+      const clean = this.devices.map(d => {
+        const c = Object.assign({}, d);
+        delete c._isVerifying;
+        if (!c.updatedAt) c.updatedAt = Date.now();
+        return c;
+      });
       localStorage.setItem("nari_devices", JSON.stringify(clean));
       localStorage.setItem("nari_diy_patterns", JSON.stringify(this.diyPatterns));
       localStorage.setItem("nari_tilt_config", JSON.stringify(this.roomMap));
       localStorage.setItem("nari_nfc_tags", JSON.stringify(this.nfcTags));
       NARI.saveSettings();
- 
+
       if (this.currentUser && this.db) {
         clearTimeout(this._saveTimer);
         this._saveTimer = setTimeout(() => {
-          this.db.collection("users").doc(this.currentUser.uid).set({
+          const payload = {
             email: this.currentUser.email,
             updatedAt: Date.now(),
             devices: clean,
@@ -143,11 +161,23 @@
             diyPatterns: this.diyPatterns,
             nfcTags: this.nfcTags,
             settings: { theme: NARI.settings.theme, voiceLang: NARI.settings.voiceLang, homeLat: NARI.settings.homeLat, homeLon: NARI.settings.homeLon, homeRadiusM: NARI.settings.homeRadiusM }
-          }, { merge: true }).catch(e => console.warn("Cloud save failed", e));
+          };
+          // 1 MB Document Limit Safeguard
+          try {
+            const sizeBytes = new Blob([JSON.stringify(payload)]).size;
+            if (sizeBytes > 800000) {
+              console.warn(`[NARI Store] Document approaches 1MB limit (${sizeBytes} bytes). Stripping large image strings.`);
+              payload.devices.forEach(d => {
+                if (d.bgPhoto && d.bgPhoto.length > 20000) d.bgPhoto = null;
+              });
+            }
+          } catch (e) {}
+
+          this.db.collection("users").doc(this.currentUser.uid).set(payload, { merge: true }).catch(e => console.warn("Cloud save failed", e));
         }, 800);
       }
     },
- 
+
     async loadCloud(force = false) {
       if (!this.currentUser || !this.db) return;
       // ZERO-COST SHIELD: Only read from Firestore if this phone has 0 devices saved (new phone/fresh install)
@@ -159,10 +189,23 @@
         const data = doc.data();
         if (Array.isArray(data.devices)) {
           const cloud = data.devices.map(migrateDevice);
+          // Conflict-free two-way sync: Merge by switch ID with timestamp resolution
+          const mergedMap = new Map();
+          cloud.forEach(cd => mergedMap.set(cd.id || cd.ip, cd));
           this.devices.forEach(local => {
-            if (!cloud.some(cd => (cd.id && cd.id === local.id) || cd.ip === local.ip)) cloud.push(local);
+            const key = local.id || local.ip;
+            const existing = mergedMap.get(key);
+            if (!existing) {
+              mergedMap.set(key, local); // switch was added locally while offline
+            } else {
+              const localTime = local.updatedAt || 0;
+              const cloudTime = existing.updatedAt || 0;
+              if (localTime >= cloudTime) {
+                mergedMap.set(key, Object.assign({}, existing, local));
+              }
+            }
           });
-          this.devices = cloud;
+          this.devices = Array.from(mergedMap.values());
         }
         if (data.roomMap) this.roomMap = Object.assign(this.roomMap, data.roomMap);
         if (Array.isArray(data.diyPatterns)) this.diyPatterns = data.diyPatterns;

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#1a0f00"/>
+  <!-- WiFi arcs -->
+  <path d="M96 52 Q130 20 164 52" fill="none" stroke="white" stroke-width="10" stroke-linecap="round"/>
+  <path d="M96 68 Q118 50 140 68" fill="none" stroke="white" stroke-width="10" stroke-linecap="round"/>
+  <!-- House -->
+  <polygon points="96,82 148,122 44,122" fill="white"/>
+  <rect x="68" y="122" width="56" height="50" rx="4" fill="white"/>
+  <rect x="82" y="134" width="14" height="14" rx="2" fill="#1a0f00"/>
+  <rect x="100" y="130" width="16" height="42" rx="2" fill="#1a0f00"/>
+</svg>
