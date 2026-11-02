@@ -15,7 +15,7 @@
   const NARI = global.NARI;
   const { store, bus, transport, audio } = NARI;
  
-  const REFRACTORY = { clap: 900, whistle: 1500, voice: 1200, shake: 1500, flick: 900, flip: 1200, compass: 2500, light: 60000, battery: 30000, presence: 20000, nfc: 1500, idle: 60000, schedule: 30000, tilt: 0, effect: 0 };
+  const REFRACTORY = { clap: 900, whistle: 1500, voice: 1200, shake: 1500, flick: 900, flip: 1200, compass: 2500, light: 60000, battery: 30000, geofence: 10000, presence: 20000, nfc: 1500, idle: 60000, schedule: 30000, tilt: 0, effect: 0 };
  
   const hub = {
     lastFire: {},                // `${id}:${type}` -> timestamp
@@ -62,6 +62,7 @@
       this._toggleSource("compass", need(["compass"]));
       this._toggleSource("light", need(["light"]));
       this._toggleSource("battery", need(["battery"]));
+      this._toggleSource("geofence", need(["geofence", "presence"]));
       this._toggleSource("presence", need(["presence"]));
       this._toggleSource("nfc", need(["nfc"]));
       this._toggleSource("idle", need(["idle"]));
@@ -435,66 +436,102 @@
     },
  
     // ---------------------------------------------------------------------------------------------
-    // Presence: "lan" (phone can reach the switch directly => you are home) or "geo" (home radius)
+    // Geo-Fence Mode: Distance calculation between smart device & phone; triggers ON near, OFF away
     // ---------------------------------------------------------------------------------------------
-    _presence: { home: {}, streak: {}, watchId: null, lastPos: null },
+    _geofence: { inside: {}, streak: {}, watchId: null, lastPos: null, distances: {} },
+    get _presence() {
+      return { home: this._geofence.inside, streak: this._geofence.streak, watchId: this._geofence.watchId, lastPos: this._geofence.lastPos };
+    },
+    start_geofence() {
+      if (!navigator.geolocation) {
+        this._setStatus("geofence", "unsupported", "No geolocation API available");
+        return;
+      }
+      this._setStatus("geofence", "active");
+      if (this._geofence.watchId === null) {
+        this._geofence.watchId = navigator.geolocation.watchPosition(
+          (pos) => this._onGeoPosition(pos),
+          (err) => this._setStatus("geofence", "denied", err.message || "Location denied"),
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+        );
+      }
+    },
+    stop_geofence() {
+      if (this._geofence.watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(this._geofence.watchId);
+      }
+      this._geofence.watchId = null;
+      this._setStatus("geofence", "idle");
+    },
     start_presence() {
-      this._presence.timer = setInterval(() => this._evalPresenceLan(), 15000);
-      this._evalPresenceLan();
-      const needGeo = this.devicesWith("presence").some(i => store.devices[i].triggers.presence.source === "geo");
-      if (needGeo) this._startGeo();
-      this._setStatus("presence", "active");
+      this.start_geofence();
     },
     stop_presence() {
-      clearInterval(this._presence.timer);
-      if (this._presence.watchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(this._presence.watchId);
-      this._presence.watchId = null;
-      this._setStatus("presence", "idle");
+      this.stop_geofence();
     },
-    _evalPresenceLan() {
-      this.devicesWith("presence").forEach(i => {
+    _onGeoPosition(pos) {
+      const pLat = pos.coords.latitude;
+      const pLon = pos.coords.longitude;
+      const acc = pos.coords.accuracy || 0;
+      this._geofence.lastPos = { lat: pLat, lon: pLon, acc };
+
+      const activeDevs = Array.from(new Set(this.devicesWith("geofence").concat(this.devicesWith("presence"))));
+      activeDevs.forEach(i => {
         const dev = store.devices[i];
-        const cfg = dev.triggers.presence;
-        if (cfg.source !== "lan") return;
-        if (transport.lanBlocked) { this._setStatus("presence", "error", "LAN presence needs LAN access (blocked on https). Use Geofence."); return; }
-        this._presenceUpdate(i, transport.lanFresh(dev));
+        if (!dev) return;
+        const cfg = dev.triggers.geofence || dev.triggers.presence || {};
+        const targetLat = (cfg.lat !== null && cfg.lat !== undefined) ? cfg.lat : (dev.lat !== null && dev.lat !== undefined ? dev.lat : NARI.settings.homeLat);
+        const targetLon = (cfg.lon !== null && cfg.lon !== undefined) ? cfg.lon : (dev.lon !== null && dev.lon !== undefined ? dev.lon : NARI.settings.homeLon);
+
+        if (targetLat === null || targetLon === null || targetLat === undefined || targetLon === undefined) {
+          return;
+        }
+
+        const dist = haversine(pLat, pLon, targetLat, targetLon);
+        const key = store.identifierOf(dev);
+        this._geofence.distances[key] = dist;
+
+        const radius = typeof cfg.radiusM === "number" ? cfg.radiusM : (parseFloat(cfg.radiusM) || 2.5);
+        // Room-level micro-proximity hysteresis (0.2m - 0.5m) to avoid edge flickering
+        const hysteresis = Math.min(0.5, Math.max(0.2, radius * 0.1));
+
+        const cur = this._geofence.inside[key];
+        if (dist <= radius) {
+          this._geofenceUpdate(i, true, dist, radius);
+        } else if (dist > radius + hysteresis) {
+          this._geofenceUpdate(i, false, dist, radius);
+        } else if (cur !== undefined) {
+          this._geofenceUpdate(i, cur, dist, radius);
+        }
+
+        bus.emit("geofence:distance", { index: i, id: dev.id, distance: dist, radius, isInside: this._geofence.inside[key] });
       });
+
+      bus.emit("geo:update", this._geofence.lastPos);
+    },
+    _geofenceUpdate(i, isInside, dist, radius) {
+      const dev = store.devices[i];
+      if (!dev) return;
+      const cfg = dev.triggers.geofence || dev.triggers.presence || {};
+      const key = store.identifierOf(dev);
+      const g = this._geofence;
+
+      g.streak[key] = (g.streak[key] && g.streak[key].val === isInside) ? { val: isInside, n: g.streak[key].n + 1 } : { val: isInside, n: 1 };
+      if (g.streak[key].n < 2) return;
+      if (g.inside[key] === isInside) return;
+
+      const first = g.inside[key] === undefined;
+      g.inside[key] = isInside;
+
+      if (first) return;
+
+      const action = isInside ? (cfg.onEnter || cfg.onArrive || "on") : (cfg.onExit || cfg.onLeave || "off");
+      if (action && action !== "none") {
+        this.fire(i, "geofence", action, { isInside, isHome: isInside, dist, radius, skipIfSame: true });
+      }
     },
     _presenceUpdate(i, isHome) {
-      const dev = store.devices[i];
-      const cfg = dev.triggers.presence;
-      const key = store.identifierOf(dev);
-      const p = this._presence;
-      // dwell: need 2 consecutive agreeing observations before switching (prevents flapping)
-      p.streak[key] = p.streak[key] && p.streak[key].val === isHome ? { val: isHome, n: p.streak[key].n + 1 } : { val: isHome, n: 1 };
-      if (p.streak[key].n < 2) return;
-      if (p.home[key] === isHome) return;
-      const first = p.home[key] === undefined;
-      p.home[key] = isHome;
-      if (first && !isHome) return;   // don't switch things off just because we started away from home
-      const action = isHome ? cfg.onArrive : cfg.onLeave;
-      if (action && action !== "none") this.fire(i, "presence", action, { isHome, skipIfSame: true });
-    },
-    _startGeo() {
-      if (!navigator.geolocation) { this._setStatus("presence", "unsupported", "No geolocation"); return; }
-      const s = NARI.settings;
-      if (s.homeLat === null || s.homeLon === null) { this._setStatus("presence", "error", "Set your Home location in Settings first."); return; }
-      this._presence.watchId = navigator.geolocation.watchPosition((pos) => {
-        const d = haversine(pos.coords.latitude, pos.coords.longitude, s.homeLat, s.homeLon);
-        this._presence.lastPos = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy, dist: d };
-        bus.emit("geo:update", this._presence.lastPos);
-        const r = s.homeRadiusM || 150;
-        // hysteresis: inside when < r, outside when > r + max(50, accuracy)
-        this.devicesWith("presence").forEach(i => {
-          const cfg = store.devices[i].triggers.presence;
-          if (cfg.source !== "geo") return;
-          const key = store.identifierOf(store.devices[i]);
-          const cur = this._presence.home[key];
-          if (d < r) this._presenceUpdate(i, true);
-          else if (d > r + Math.max(50, pos.coords.accuracy || 0)) this._presenceUpdate(i, false);
-          else if (cur !== undefined) this._presenceUpdate(i, cur);
-        });
-      }, (err) => this._setStatus("presence", "denied", err.message), { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 });
+      return this._geofenceUpdate(i, isHome, 0, 50);
     },
  
     // ---------------------------------------------------------------------------------------------
@@ -571,7 +608,7 @@
     // ---------------------------------------------------------------------------------------------
     // Schedule / countdown timer / sunrise-sunset
     // ---------------------------------------------------------------------------------------------
-    _sched: { lastMinute: {}, timer: null },
+    _sched: { lastMinute: {}, done: {}, lastTick: 0, timer: null },
     start_schedule() {
       this._sched.timer = setInterval(() => this._tickSchedule(), 15000);
       this._tickSchedule();
@@ -579,29 +616,42 @@
     },
     stop_schedule() { clearInterval(this._sched.timer); this._setStatus("schedule", "idle"); },
     _tickSchedule() {
-      const now = new Date();
-      const minuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
+      const nowMs = Date.now();
+      const S = this._sched;
+      // Browsers throttle or freeze timers in background tabs, so a tick can arrive minutes late. Evaluate every
+      // minute since the previous tick (up to a 15 min grace window) so a rule is never silently skipped, but a
+      // rule that is hours old is never replayed (e.g. don't switch the geyser on at 2 pm for a 6 am rule).
+      const GRACE = 15 * 60000;
+      const from = S.lastTick && nowMs - S.lastTick <= GRACE ? S.lastTick : nowMs;
+      S.lastTick = nowMs;
+      const mk = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()} ${d.getHours()}:${d.getMinutes()}`;
+      // prune the dedupe set
+      Object.keys(S.done).forEach(k => { if (nowMs - S.done[k] > 2 * GRACE) delete S.done[k]; });
+
       this.devicesWith("schedule").forEach(i => {
         const dev = store.devices[i];
         const cfg = dev.triggers.schedule;
         // countdown timer
-        if (cfg.timer && cfg.timer.endsAt && Date.now() >= cfg.timer.endsAt) {
+        if (cfg.timer && cfg.timer.endsAt && nowMs >= cfg.timer.endsAt) {
           const act = cfg.timer.action; cfg.timer = null; store.save();
           this.fire(i, "schedule", act, { timer: true }); bus.emit("device:updated", i);
         }
         const dk = store.identifierOf(dev);
-        if (minuteKey === this._sched.lastMinute[dk]) return;
-        this._sched.lastMinute[dk] = minuteKey;
-        (cfg.rules || []).forEach(rule => {
-          if (!rule.enabled && rule.enabled !== undefined) return;
-          if (Array.isArray(rule.days) && rule.days.length && !rule.days.includes(now.getDay())) return;
-          const hm = resolveRuleTime(rule, now);
-          if (!hm) return;
-          if (hm.h === now.getHours() && hm.m === now.getMinutes()) {
-            this.lastFire[`${store.identifierOf(dev)}:schedule`] = 0;   // rules are exact-minute, never block each other
+        for (let t = Math.floor(from / 60000) * 60000; t <= nowMs; t += 60000) {
+          const when = new Date(t);
+          const minuteKey = mk(when);
+          (cfg.rules || []).forEach((rule, ri) => {
+            if (!rule.enabled && rule.enabled !== undefined) return;
+            if (Array.isArray(rule.days) && rule.days.length && !rule.days.includes(when.getDay())) return;
+            const hm = resolveRuleTime(rule, when);
+            if (!hm || hm.h !== when.getHours() || hm.m !== when.getMinutes()) return;
+            const key = `${dk}|${ri}|${rule.time}|${minuteKey}`;
+            if (S.done[key]) return;
+            S.done[key] = nowMs;
+            this.lastFire[`${dk}:schedule`] = 0;   // rules are exact-minute, never block each other
             this.fire(i, "schedule", rule.action || "toggle", { rule: rule.time });
-          }
-        });
+          });
+        }
       });
     },
  
@@ -707,6 +757,9 @@
     if (a.includes(b) || b.includes(a)) return 0.92;
     // token-set + Levenshtein blend
     const ta = a.split(" "), tb = b.split(" ");
+    // natural phrasing: every word of the configured phrase is present in what was heard, in any order
+    // ("please turn off the light" contains light + off). Needs >= 2 words so a single common word can't trigger.
+    if (tb.length >= 2 && tb.every(t => ta.includes(t))) return 0.9;
     const common = ta.filter(x => tb.includes(x)).length;
     const tokenScore = (2 * common) / (ta.length + tb.length);
     const lev = 1 - levenshtein(a, b) / Math.max(a.length, b.length);

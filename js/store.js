@@ -24,6 +24,7 @@
       compass:  { enabled: false, heading: null, tolerance: 25 },
       light:    { enabled: false, mode: "darkOn", threshold: 15 },
       battery:  { enabled: false, mode: "chargerGuard", low: 20, high: 80 },
+      geofence: { enabled: false, radiusM: 2.5, lat: null, lon: null, onEnter: "on", onExit: "off" },
       presence: { enabled: false, source: "lan", onArrive: "on", onLeave: "off" },
       nfc:      { enabled: false, serial: null, action: "toggle" },
       idle:     { enabled: false, minutes: 10, action: "off" },
@@ -50,6 +51,8 @@
       state: false,
       bootState: "LAST",
       bgPhoto: null,
+      lat: null,
+      lon: null,
       isOnline: true,
       lanOk: false,
       lanRssi: null,
@@ -74,9 +77,14 @@
     dev.triggers = t;
  
     if (raw.mode && raw.mode !== "none" && !raw.triggers) {
-      const map = { flicker: "effect", tilt: "tilt", "auto-proximity": "presence", "voice-custom": "voice", "trained-clap": "clap", shake: "shake", wrist: "flick" };
+      const map = { flicker: "effect", tilt: "tilt", "auto-proximity": "geofence", geofence: "geofence", presence: "geofence", "voice-custom": "voice", "trained-clap": "clap", shake: "shake", wrist: "flick" };
       const key = map[raw.mode];
       if (key) dev.triggers[key].enabled = true;
+    }
+    if (dev.triggers.presence && dev.triggers.presence.enabled && !dev.triggers.geofence.enabled) {
+      dev.triggers.geofence.enabled = true;
+      if (dev.triggers.presence.onArrive) dev.triggers.geofence.onEnter = dev.triggers.presence.onArrive;
+      if (dev.triggers.presence.onLeave) dev.triggers.geofence.onExit = dev.triggers.presence.onLeave;
     }
     if (raw.voiceOn) dev.triggers.voice.on = raw.voiceOn;
     if (raw.voiceOff) dev.triggers.voice.off = raw.voiceOff;

@@ -18,6 +18,10 @@
 #include <EEPROM.h>
 #include <PubSubClient.h>
 #include <ArduinoOTA.h>
+#include <ESP8266httpUpdate.h>
+
+// Bump this on every release. Must match "version" in firmware/version.json.
+#define FW_VERSION "1.2.0"
 
 // ---------- Hardware Pins (ESP-01S Relay Module v4.0) ----------
 #define RELAY_PIN       0     // GPIO0 controls the relay on ESP-01S relay shield
@@ -55,6 +59,70 @@ bool relayState = false;
 unsigned long lastMqttRetry = 0;
 unsigned long buttonPressStart = 0;
 bool buttonActive = false;
+
+// OTA is executed from loop() (never inside an MQTT/HTTP callback) so the stack stays small.
+String pendingOtaUrl = "";
+bool otaRunning = false;
+unsigned int lastOtaPct = 101;
+
+void publishOta(const String& msg) {
+  if (!mqttClient.connected()) return;
+  String topic = "nari/" + String(config.devId) + "/ota/progress";
+  mqttClient.publish(topic.c_str(), msg.c_str(), false);
+  mqttClient.loop();
+}
+
+void publishState() {
+  if (!mqttClient.connected()) return;
+  String topic = "nari/" + String(config.devId) + "/state";
+  String json = String("{\"state\":") + (relayState ? "1" : "0") + ",\"fw\":\"" + FW_VERSION + "\"}";
+  mqttClient.publish(topic.c_str(), json.c_str(), true);
+}
+
+// Only plain http:// links to a .bin are accepted (ESP-01S cannot do TLS reliably).
+bool otaUrlAllowed(const String& url) {
+  return url.startsWith("http://") && url.endsWith(".bin") && url.length() < 200;
+}
+
+void runOta() {
+  String url = pendingOtaUrl;
+  pendingOtaUrl = "";
+  otaRunning = true;
+  lastOtaPct = 101;
+  publishOta("start");
+
+  ESPhttpUpdate.rebootOnUpdate(false);
+  ESPhttpUpdate.onProgress([](int cur, int total) {
+    if (total <= 0) return;
+    unsigned int pct = (unsigned int)((cur * 100L) / total);
+    if (pct / 5 != lastOtaPct / 5) {          // report every 5 %
+      lastOtaPct = pct;
+      publishOta(String("progress:") + pct);
+    }
+  });
+
+  WiFiClient otaClient;
+  t_httpUpdate_return ret = ESPhttpUpdate.update(otaClient, url);
+  switch (ret) {
+    case HTTP_UPDATE_OK:
+      publishOta("done");
+      delay(500);
+      ESP.restart();
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      publishOta("error:no update available");
+      break;
+    default: {
+      String err = ESPhttpUpdate.getLastErrorString();
+      if (mqttClient.connected()) {
+        String topic = "nari/" + String(config.devId) + "/ota/error";
+        mqttClient.publish(topic.c_str(), err.c_str(), false);
+      }
+      publishOta("error:" + err);
+    }
+  }
+  otaRunning = false;
+}
 
 // ---------- EEPROM Management ----------
 void loadConfig() {
@@ -94,10 +162,7 @@ void setRelay(bool state, bool publishMqtt = true) {
     }
   }
 
-  if (publishMqtt && mqttClient.connected()) {
-    String topic = "nari/" + String(config.devId) + "/state";
-    mqttClient.publish(topic.c_str(), relayState ? "ON" : "OFF", true);
-  }
+  if (publishMqtt) publishState();
 }
 
 // ---------- Captive Portal (Ultra-Lightweight HTML) ----------
@@ -172,28 +237,88 @@ void startSetupAP() {
 }
 
 // ---------- LAN HTTP Handlers (Normal Mode) ----------
-void handleLanState() {
-  if (server.method() == HTTP_POST) {
-    String token = server.arg("token");
-    if (token.length() > 0 && token != String(config.authKey)) {
-      server.send(401, "application/json", "{\"error\":\"unauthorized\"}");
-      return;
-    }
-    String s = server.arg("state");
-    if (s == "1" || s == "true" || s == "ON") setRelay(true);
-    else if (s == "0" || s == "false" || s == "OFF") setRelay(false);
-    else if (s == "toggle") setRelay(!relayState);
-  }
+// Contract used by js/transport.js:  /ping  /toggle?state=1  /setBootState?mode=LAST  /ota?url=http://...bin
+// Every request must carry the shared key as ?k=KEY (legacy ?token=KEY also accepted).
+void sendCors() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Private-Network", "true");
+  server.sendHeader("Access-Control-Allow-Headers", "*");
+}
 
-  String json = "{\"id\":\"" + String(config.devId) + "\",\"name\":\"" + String(config.devName) + "\",\"state\":" + (relayState ? "true" : "false") + ",\"rssi\":" + String(WiFi.RSSI()) + ",\"fw\":\"1.1.0\"}";
+bool lanAuthorized() {
+  String k = server.hasArg("k") ? server.arg("k") : server.arg("token");
+  if (k == String(config.authKey)) return true;
+  sendCors();
+  server.send(401, "application/json", "{\"error\":\"unauthorized\"}");
+  return false;
+}
+
+void handleCorsPreflight() { sendCors(); server.send(204); }
+
+void handleLanPing() {
+  if (!lanAuthorized()) return;
+  String json = "{\"id\":\"" + String(config.devId) + "\",\"name\":\"" + String(config.devName) + "\",\"state\":" + (relayState ? "1" : "0") + ",\"rssi\":" + String(WiFi.RSSI()) + ",\"fw\":\"" + FW_VERSION + "\"}";
+  sendCors();
   server.send(200, "application/json", json);
+}
+
+void handleLanToggle() {
+  if (!lanAuthorized()) return;
+  String s = server.arg("state");
+  if (s == "1" || s == "true" || s == "ON") setRelay(true);
+  else if (s == "0" || s == "false" || s == "OFF") setRelay(false);
+  else setRelay(!relayState);
+  sendCors();
+  server.send(200, "text/plain", relayState ? "1" : "0");
+}
+
+void handleLanBootState() {
+  if (!lanAuthorized()) return;
+  String m = server.arg("mode");
+  m.toUpperCase();
+  if (m == "LAST" || m == "ON" || m == "OFF") {
+    memset(config.bootState, 0, sizeof(config.bootState));
+    strncpy(config.bootState, m.c_str(), sizeof(config.bootState) - 1);
+    saveConfig();
+    sendCors();
+    server.send(200, "text/plain", m);
+  } else {
+    sendCors();
+    server.send(400, "text/plain", "bad mode");
+  }
+}
+
+void handleLanOta() {
+  if (!lanAuthorized()) return;
+  String url = server.arg("url");
+  sendCors();
+  if (!otaUrlAllowed(url)) { server.send(400, "text/plain", "url must be http://...bin"); return; }
+  if (otaRunning || pendingOtaUrl.length() > 0) { server.send(409, "text/plain", "busy"); return; }
+  pendingOtaUrl = url;
+  server.send(202, "text/plain", "ota queued");
 }
 
 // ---------- MQTT Callbacks ----------
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   String msg = "";
-  for (unsigned int i = 0; i < length; i++) msg += (char)payload[i];
+  for (unsigned int i = 0; i < length && i < 256; i++) msg += (char)payload[i];
   msg.trim();
+  String t = String(topic);
+
+  if (t.endsWith("/ota")) {
+    if (otaUrlAllowed(msg) && !otaRunning) pendingOtaUrl = msg;
+    else publishOta("error:rejected url");
+    return;
+  }
+  if (t.endsWith("/config/boot")) {
+    msg.toUpperCase();
+    if (msg == "LAST" || msg == "ON" || msg == "OFF") {
+      memset(config.bootState, 0, sizeof(config.bootState));
+      strncpy(config.bootState, msg.c_str(), sizeof(config.bootState) - 1);
+      saveConfig();
+    }
+    return;
+  }
 
   if (msg.equalsIgnoreCase("ON") || msg == "1" || msg.equalsIgnoreCase("TRUE")) setRelay(true);
   else if (msg.equalsIgnoreCase("OFF") || msg == "0" || msg.equalsIgnoreCase("FALSE")) setRelay(false);
@@ -213,10 +338,11 @@ void reconnectMqtt() {
   
   if (mqttClient.connect(clientId.c_str(), DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS, willTopic.c_str(), 0, true, "offline")) {
     mqttClient.publish(willTopic.c_str(), "online", true);
-    String cmdTopic = "nari/" + String(config.devId) + "/set";
-    mqttClient.subscribe(cmdTopic.c_str());
-    String stateTopic = "nari/" + String(config.devId) + "/state";
-    mqttClient.publish(stateTopic.c_str(), relayState ? "ON" : "OFF", true);
+    String base = "nari/" + String(config.devId);
+    mqttClient.subscribe((base + "/set").c_str());
+    mqttClient.subscribe((base + "/ota").c_str());
+    mqttClient.subscribe((base + "/config/boot").c_str());
+    publishState();
   }
 }
 
@@ -252,10 +378,15 @@ void setup() {
 
   if (WiFi.status() == WL_CONNECTED) {
     digitalWrite(LED_PIN, HIGH); // Solid off when connected
-    server.on("/state", handleLanState);
-    server.on("/info", handleLanState);
+    server.on("/ping", HTTP_GET, handleLanPing);
+    server.on("/info", HTTP_GET, handleLanPing);
+    server.on("/toggle", HTTP_GET, handleLanToggle);
+    server.on("/setBootState", HTTP_GET, handleLanBootState);
+    server.on("/ota", HTTP_GET, handleLanOta);
+    server.onNotFound(handleCorsPreflight);   // answers browser OPTIONS preflights
     server.begin();
     ArduinoOTA.setHostname(config.devId);
+    ArduinoOTA.setPassword(config.authKey);   // IDE-OTA is no longer open to anyone on the LAN
     ArduinoOTA.begin();
   } else {
     // Router changed or Wi-Fi failed — auto fallback to Captive Portal setup
@@ -298,5 +429,6 @@ void loop() {
     if (!mqttClient.connected()) reconnectMqtt();
     else mqttClient.loop();
     ArduinoOTA.handle();
+    if (pendingOtaUrl.length() > 0 && !otaRunning) runOta();
   }
 }

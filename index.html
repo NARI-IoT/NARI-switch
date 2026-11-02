@@ -2,9 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>NARI Smart Home</title>
-  <meta name="description" content="Control NARI smart switches over LAN and cloud with phone-sensor automations.">
+  <meta name="description" content="NARI Smart Home: control your smart switches instantly over your home Wi-Fi and from anywhere via the cloud. Install it as an app, works offline on your local network.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="NARI Smart Home">
+  <meta property="og:description" content="Control NARI smart switches over LAN and cloud with phone-sensor automations.">
+  <meta property="og:image" content="icons/icon-512.png">
+  <meta name="twitter:card" content="summary">
   <meta name="theme-color" content="#0b1a13">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,21 +19,22 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/app.css?v=1.1.0">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="css/app.css?v=1.2.2">
 
   <!-- MQTT client for WebSockets -->
-  <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+  <script src="vendor/js/mqtt.min.js"></script>
 
   <!-- Firebase SDKs (Compat layer for Web Auth & Firestore sync) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="vendor/js/firebase-app-compat.js"></script>
+  <script src="vendor/js/firebase-auth-compat.js"></script>
+  <script src="vendor/js/firebase-firestore-compat.js"></script>
 
   <!-- Lightweight client-side QR Code generator (100% offline & free) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="vendor/js/qrcode.min.js"></script>
 </head>
 <body>
+  <noscript><p style="padding:24px;color:#fff;font-family:sans-serif;">NARI Smart Home needs JavaScript enabled to run.</p></noscript>
 
   <!-- Left Slide-Out Sidebar Drawer -->
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -95,13 +101,21 @@
 
   <!-- App Architecture Scripts -->
   <script src="js/config.local.js" onerror="this.remove()"></script>
-  <script src="js/config.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/transport.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/sensors.js"></script>
-  <script src="js/scenes.js?v=1.1.0"></script>
-  <script src="js/app.js?v=1.1.0"></script>
-  <script src="js/sharing.js?v=1.1.0"></script>
+  <script src="js/config.js?v=1.2.2"></script>
+  <script src="js/store.js?v=1.2.2"></script>
+  <script src="js/transport.js?v=1.2.2"></script>
+  <script src="js/audio.js?v=1.2.2"></script>
+  <script src="js/sensors.js?v=1.2.2"></script>
+  <script src="js/scenes.js?v=1.2.2"></script>
+  <script src="js/app.js?v=1.2.2"></script>
+  <script src="js/sharing.js?v=1.2.2"></script>
+  <script>
+    // Offline support: cache the app shell so the app opens (and LAN control works) with no internet.
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW registration failed:", e));
+      });
+    }
+  </script>
 </body>
 </html>

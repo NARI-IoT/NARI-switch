@@ -106,6 +106,7 @@
             this.client.subscribe(`${s.topicPrefix}/${id}/state`, { qos: 0 });
             this.client.subscribe(`${s.topicPrefix}/${id}/status`, { qos: 0 });
             this.client.subscribe(`${s.topicPrefix}/${id}/ota/error`, { qos: 0 });
+            this.client.subscribe(`${s.topicPrefix}/${id}/ota/progress`, { qos: 0 });
           }
         });
       }
@@ -156,6 +157,13 @@
         bus.emit("device:updated", idx);
       } else if (kind === "ota/error") {
         bus.emit("toast", { text: `${dev.name}: firmware update failed - ${payload}`, level: "error" });
+        bus.emit("ota:progress", { index: idx, status: "error", message: payload });
+      } else if (kind === "ota/progress") {
+        // Device reports: start | progress:<pct> | done | error:<msg>
+        if (payload === "start") bus.emit("ota:progress", { index: idx, status: "start", pct: 0 });
+        else if (payload === "done") bus.emit("ota:progress", { index: idx, status: "done", pct: 100 });
+        else if (payload.indexOf("progress:") === 0) bus.emit("ota:progress", { index: idx, status: "progress", pct: parseInt(payload.slice(9), 10) || 0 });
+        else if (payload.indexOf("error:") === 0) bus.emit("ota:progress", { index: idx, status: "error", message: payload.slice(6) });
       }
     },
  

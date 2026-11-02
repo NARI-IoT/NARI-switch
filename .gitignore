@@ -1,0 +1,8 @@
+# Deployment secrets - never commit
+js/config.local.js
+
+# Local tooling / OS
+node_modules/
+.DS_Store
+Thumbs.db
+*.log

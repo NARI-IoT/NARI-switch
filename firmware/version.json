@@ -1,7 +1,7 @@
 {
-  "version": "1.1.0",
-  "releaseDate": "2026-09-20",
-  "title": "Performance & Zero-Wear Update",
-  "notes": "⚡ Faster Wi-Fi response, zero flash wear, and heap memory stability.",
+  "version": "1.2.0",
+  "releaseDate": "2026-10-05",
+  "title": "Secure & Reliable Update",
+  "notes": "Authenticated local control, real over-the-air updates with progress, and cloud command support.",
   "binUrl": "http://129.225.82.9/firmware/nari_switch_esp01s.bin"
 }
