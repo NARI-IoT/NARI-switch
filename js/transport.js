@@ -176,8 +176,16 @@
       if (kind === "state") {
         const parsed = parseState(payload);
         const r1 = parsed.relay1 !== null ? parsed.relay1 : parsed.state;
-        if (r1 !== null) this._applyReported(dev, 1, r1);
-        if (parsed.relay2 !== null) this._applyReported(dev, 2, parsed.relay2);
+        let a1 = true;
+        let a2 = true;
+        if (r1 !== null) a1 = this._applyReported(dev, 1, r1);
+        if (parsed.relay2 !== null) a2 = this._applyReported(dev, 2, parsed.relay2);
+
+        // Anti-flicker guard: if reported states contradict pending target state, ignore stale echo
+        if (a1 === false && (parsed.relay2 === null || a2 === false)) {
+          return;
+        }
+
         if (parsed.fw) dev.fw = parsed.fw;
         if (parsed.ip && /^\d{1,3}(\.\d{1,3}){3}$/.test(parsed.ip) && parsed.ip !== "0.0.0.0") {
           dev.ip = parsed.ip;
@@ -191,8 +199,10 @@
         }
         dev.lastCloudSeen = now;
         if (dev.cloudOnline !== false) dev.cloudOnline = true;
-        this._clearPending(dev);
-        dev._isVerifying = false;
+        if (!this.isPending(dev, 1) && (!dev.dual || !this.isPending(dev, 2))) {
+          this._clearPending(dev);
+          dev._isVerifying = false;
+        }
         dev.isOnline = true;
         store.save();
         bus.emit("device:updated", idx);

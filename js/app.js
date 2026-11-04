@@ -2514,6 +2514,11 @@
         <div>Settings<span class="sub">Theme, Tariff &amp; Voice Preferences</span></div>
         <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
       </div>
+      ${(window.NARI_LEGAL_UI && window.NARI_LEGAL_UI.makeInIndiaBadgeHtml) ? window.NARI_LEGAL_UI.makeInIndiaBadgeHtml() : ''}
+      <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn" onclick="NARI.app.showAboutApp()"><i class="fa-solid fa-circle-info"></i> About This App</button>
+        <button class="btn" onclick="NARI.app.showTerms()"><i class="fa-solid fa-file-contract"></i> Terms &amp; Conditions</button>
+      </div>
       <div class="form-group">
         <label>App Theme</label>
         <select id="cfgTheme" onchange="NARI.app.changeTheme(this.value)">
@@ -2651,6 +2656,39 @@
         }).join("")}
       </div>
     `);
+  };
+
+  // --- About App & Terms viewers (text lives in js/legal-content.js) ---
+  function openLegalSheet(title, sub, bodyHtml, extraHtml) {
+    const ui = window.NARI_LEGAL_UI;
+    if (ui && ui.styles) ui.styles();
+    openSheet(`
+      <div class="sheet-header">
+        <div>${title}<span class="sub">${sub}</span></div>
+        <button class="btn-close" onclick="NARI.app.closeSheet()">✕</button>
+      </div>
+      <div class="lg-body" style="max-height:62vh;overflow-y:auto;padding:0 2px 8px;">${bodyHtml}</div>
+      ${extraHtml || ""}
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn" onclick="NARI.app.openAppSettings()"><i class="fa-solid fa-arrow-left"></i> Back to Settings</button>
+      </div>
+    `);
+  }
+  NARI.app.openAppSettings = () => { if (dom.btnSettings && dom.btnSettings.onclick) dom.btnSettings.onclick(); };
+  NARI.app.showAboutApp = () => {
+    const ui = window.NARI_LEGAL_UI;
+    if (!ui) return;
+    openLegalSheet("About NARI Smart Home", "What this app can do for you", ui.aboutHtml(),
+      `<div class="btn-row" style="margin-top:8px;"><button class="btn" onclick="NARI.app.showTerms()"><i class="fa-solid fa-file-contract"></i> Terms &amp; Conditions</button></div>`);
+  };
+  NARI.app.showTerms = () => {
+    const ui = window.NARI_LEGAL_UI;
+    if (!ui) return;
+    const at = ui.acceptedAt();
+    const when = at ? `You accepted these Terms on ${new Date(at).toLocaleString()}.` : "";
+    openLegalSheet("Terms & Conditions", `Version ${ui.version}`, ui.termsHtml(),
+      `${when ? `<p class="lg-p lg-muted" style="margin:8px 2px 0;">${when}</p>` : ""}
+       <p class="lg-p" style="margin:4px 2px 0;">Privacy Policy: <a class="lg-link" target="_blank" rel="noopener" href="${ui.privacyUrl}">${ui.privacyUrl.replace("https://", "")}</a></p>`);
   };
 
   NARI.app.setBottomTab = (tab) => {

@@ -1,0 +1,21 @@
+Item,Designator,Description,Footprint/Package,Quantity,LCSC/Supplier Part#,Notes
+1,U1,ESP32-C3 SuperMini Development Board,2x8 Pin 2.54mm Female Header Socket,1,C2897383 (Headers),Main Controller (RISC-V Wi-Fi + BLE)
+2,U2,HI-LINK HLK-5M05 Isolated AC-DC 5V 1A Module,HLK-5M05 Through-Hole (38x23mm),1,HLK-5M05,Mains 230V/110V to Regulated 5V DC
+3,K1,2-Channel 5V Relay Module (HL-52S),1x4 Pin 2.54mm Header (or SRD-05VDC-SL-C),1,HL-52S / SRD-05VDC,Switches 230V AC up to 10A per channel
+4,TS1,TTP223 Capacitive Touch Switch 1,1x3 Pin 2.54mm Header / JST-XH,1,TTP223 Module,Channel 1 Touch Sensor (or Wall Rocker)
+5,TS2,TTP223 Capacitive Touch Switch 2,1x3 Pin 2.54mm Header / JST-XH,1,TTP223 Module,Channel 2 Touch Sensor (or Wall Rocker)
+6,U3,VS1838B 38kHz IR Receiver Sensor,TO-92 / 3-Pin SIP (2.54mm),1,C152597 / VS1838B,Learns AC/TV remote codes into firmware
+7,D1,940nm 5mm High-Power Infrared Transmitter LED,LED_D5.0mm (Radial),1,C965825 / TSAL6400,Emits IR commands to appliances
+8,Q1,2N2222A NPN Bipolar Transistor (600mA 40V),TO-92 (or SOT-23),1,C149864 (2N2222),Drives 940nm IR LED at ~80mA pulses
+9,R1,1kΩ 1/4W 5% Metal Film Resistor,Resistor Axial 0.25W (P=7.62mm),1,C17513,Base current limiter for Q1 (GPIO4 to Base)
+10,R2,39Ω to 47Ω 1/2W 5% Metal Film Resistor,Resistor Axial 0.5W (P=10.16mm),1,C60882,Current limiter for 940nm IR LED (+5V to Anode)
+11,R3,100Ω 1/4W 5% Metal Film Resistor,Resistor Axial 0.25W (P=7.62mm),1,C17512,Power filter for VS1838B VCC (3.3V rail)
+12,BZ1,5V Piezo Buzzer / Speaker (Acoustic Chime),BUZZER_D9.0mm_P5.0mm (Through-Hole),1,C474665,Relay click & pairing audio chirps (GPIO7)
+13,C1,470µF 16V Radial Electrolytic Capacitor,CAP_Radial_D8.0mm_P3.5mm,1,C333887,5V Rail ripple filtering & relay surge buffer
+14,C2,10µF 16V Radial Electrolytic Capacitor,CAP_Radial_D5.0mm_P2.0mm,1,C341147,VS1838B IR Receiver decoupling
+15,C3 C4,100nF (0.1µF) 50V Ceramic Capacitors,CAP_Ceramic_P2.54mm,2,C14663,High-frequency decoupling (5V & 3.3V)
+16,F1,1A 250V Slow-Blow Radial Fuse (TR5 / Micro),FUSE_TR5_Radial (P=5.08mm),1,C78201,AC Mains Live Over-Current Protection
+17,MOV1,10D471K Metal Oxide Varistor (470V 2.5kA),MOV_D10mm (P=7.5mm),1,C219665,Surge & Lightning Protection across AC L & N
+18,TB1,2-Pin / 3-Pin 5.08mm Screw Terminal Block,TERM_BLOCK_P5.08mm,1,C8471,AC Mains 230V Input (Phase & Neutral)
+19,TB2,3-Pin / 4-Pin 5.08mm Screw Terminal Block,TERM_BLOCK_P5.08mm,1,C8472,Appliance 1 & 2 Live Outputs (NO1, NO2, L)
+

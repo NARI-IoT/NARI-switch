@@ -214,15 +214,9 @@
   </button>
 
   <!-- App Architecture Scripts -->
-  <script src="js/config.local.js" onerror="this.remove()"></script>
-  <script src="js/config.js?v=2.4.0"></script>
-  <script src="js/store.js?v=2.4.0"></script>
-  <script src="js/transport.js?v=2.4.0"></script>
-  <script src="js/audio.js?v=2.4.0"></script>
-  <script src="js/sensors.js?v=2.4.0"></script>
-  <script src="js/scenes.js?v=2.4.0"></script>
-  <script src="js/app.js?v=2.4.0"></script>
-  <script src="js/sharing.js?v=2.4.0"></script>
+  <!-- Terms & Conditions gate: loads the app scripts (config ... sharing) ONLY after the user accepts. -->
+  <script src="js/legal-content.js?v=2.4.0"></script>
+  <script src="js/legal.js?v=2.4.0"></script>
   <script>
     // Offline support with instant auto-update
     if ("serviceWorker" in navigator) {
