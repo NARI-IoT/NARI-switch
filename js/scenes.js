@@ -240,6 +240,7 @@
       const now = Date.now();
 
       for (const scene of this.list) {
+        if (scene.enabled === false) continue;
         if (!scene.trigger || scene.trigger.type !== "device") continue;
         // 3-second loop/debounce guard
         if (scene._lastTriggered && (now - scene._lastTriggered < 3000)) continue;
@@ -251,8 +252,10 @@
         if (!matchesDev) continue;
 
         const cond = scene.trigger.condition; // "on", "off", "toggle"
-        const isMatch = (cond === "on" && dev.state === true) ||
-                        (cond === "off" && dev.state === false) ||
+        const trigRelay = scene.trigger.relay === 2 ? 2 : 1;
+        const curState = trigRelay === 2 ? !!dev.state2 : !!dev.state;
+        const isMatch = (cond === "on" && curState === true) ||
+                        (cond === "off" && curState === false) ||
                         (cond === "toggle");
 
         if (isMatch) {
@@ -300,7 +303,10 @@
 
             if (dev.state !== targetState) {
               adjustedCount++;
-              promises.push(transport.setState(devIdx, targetState, { quiet: true, source: "scene:" + scene.id }));
+              promises.push(transport.setState(devIdx, targetState, { relay: 1, quiet: true, source: "scene:" + scene.id }));
+            }
+            if (dev.dual && act.relay !== 1 && dev.state2 !== targetState) {
+              promises.push(transport.setState(devIdx, targetState, { relay: 2, quiet: true, source: "scene:" + scene.id }));
             }
           }
         }
@@ -313,9 +319,14 @@
           const dev = devices[i];
           // If not explicitly overridden, apply defaultAll
           const isExplicit = Array.isArray(scene.actions) && scene.actions.some(a => a.deviceId === dev.id || a.deviceName === dev.name);
-          if (!isExplicit && dev.state !== targetAll) {
-            adjustedCount++;
-            promises.push(transport.setState(i, targetAll, { quiet: true, source: "scene:" + scene.id }));
+          if (!isExplicit) {
+            if (dev.state !== targetAll || (dev.dual && dev.state2 !== targetAll)) adjustedCount++;
+            if (dev.state !== targetAll) {
+              promises.push(transport.setState(i, targetAll, { relay: 1, quiet: true, source: "scene:" + scene.id }));
+            }
+            if (dev.dual && dev.state2 !== targetAll) {
+              promises.push(transport.setState(i, targetAll, { relay: 2, quiet: true, source: "scene:" + scene.id }));
+            }
           }
         }
       }
@@ -670,7 +681,7 @@
         act.actionLabel = "Toggle";
       } else {
         act.state = false;
-        act.actionLabel = "Motor OFF";
+        act.actionLabel = "Turn OFF";
       }
       this._renderSceneEditor();
     },
@@ -716,7 +727,7 @@
                 </div>
                 <div style="flex:1;">
                   <b style="color:var(--text);font-size:0.92rem;display:block;">${d.name || 'Switch'} Turned ON</b>
-                  <span class="small muted">Channel 2 Single-pressed / State Changed</span>
+                  <span class="small muted">Triggers when this switch is turned ON</span>
                 </div>
                 <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
               </div>
@@ -793,7 +804,7 @@
 
     _setDeviceTrigger(devKey, devName, condition) {
       if (!this._currentEdit) return;
-      const condLabel = condition === "on" ? "Channel2 Single-pressed" : "When switch turns OFF";
+      const condLabel = condition === "on" ? "When switch turns ON" : "When switch turns OFF";
       this._currentEdit.trigger = {
         type: "device",
         deviceId: devKey,
@@ -861,7 +872,7 @@
         deviceId: devKey,
         deviceName: devName,
         state: false,
-        actionLabel: "Motor OFF"
+        actionLabel: "Turn OFF"
       });
 
       this._renderSceneEditor();
@@ -973,8 +984,8 @@
                     ` : ''}
                   </div>
                   <div class="scene-info">
-                    <b class="scene-name">${s.name}</b>
-                    <span class="scene-sub">${s.subtitle || '1-Tap Scene'}</span>
+                    <b class="scene-name">${String(s.name || 'Scene').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</b>
+                    <span class="scene-sub">${String(s.subtitle || '1-Tap Scene').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</span>
                   </div>
                   ${triggerTag ? `
                     <div class="scene-trigger-tag">
@@ -1051,8 +1062,8 @@
                     ` : ''}
                   </div>
                   <div class="scene-info">
-                    <b class="scene-name">${s.name}</b>
-                    <span class="scene-sub">${s.subtitle || '1-Tap Scene'}</span>
+                    <b class="scene-name">${String(s.name || 'Scene').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</b>
+                    <span class="scene-sub">${String(s.subtitle || '1-Tap Scene').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</span>
                   </div>
                   ${triggerTag ? `
                     <div class="scene-trigger-tag">

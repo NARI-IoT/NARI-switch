@@ -28,6 +28,10 @@
     try { localStorage.setItem(key, JSON.stringify(data)); } catch (e) {}
   }
 
+  function escHtml(s) {
+    return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
   const defaultSharingState = {
     homeName: "My Home",
     role: "admin", // "admin" (Primary), "co-admin", "member", "guest"
@@ -59,11 +63,38 @@
         this.save();
       }
 
-      // Listen for switch changes to record phone-clock activity log
-      bus.on("device:updated", (idx) => {
-        const dev = store.devices[idx];
+      // Track last command source/actor for activity attribution
+      bus.on("device:commanded", (evt) => {
+        if (!evt || evt.index === undefined) return;
+        const dev = store.devices && store.devices[evt.index];
         if (!dev) return;
-        this.logActivity(`${dev.name} is now turned ${dev.state ? "ON ⚡" : "OFF 🌙"}`, dev.state ? "on" : "off");
+        const actor = this.isGuestMode && this.guestConfig
+          ? `Guest (${this.guestConfig.gname || "Visitor"})`
+          : (store.currentUser ? (store.currentUser.displayName || store.currentUser.email || "Owner").split(" ")[0] : "App");
+        const src = evt.source && evt.source !== "manual" ? `${evt.source} • ${actor}` : actor;
+        dev._lastActor = src;
+      });
+
+      // Listen for switch state changes to record phone-clock activity log (prevents poll spam)
+      bus.on("device:updated", (idx) => {
+        const dev = store.devices && store.devices[idx];
+        if (!dev) return;
+        const s1Changed = dev._lastLoggedState !== undefined && dev._lastLoggedState !== dev.state;
+        const s2Changed = dev.dual && dev._lastLoggedState2 !== undefined && dev._lastLoggedState2 !== dev.state2;
+        const actorSuffix = dev._lastActor ? ` [by ${dev._lastActor}]` : "";
+
+        if (s1Changed) {
+          const r1Name = dev.relay1Name || dev.name || "Switch 1";
+          this.logActivity(`${r1Name} (${dev.name}) is now ${dev.state ? "ON ⚡" : "OFF 🌙"}${actorSuffix}`, dev.state ? "on" : "off");
+        }
+        if (s2Changed) {
+          const r2Name = dev.relay2Name || "Switch 2";
+          this.logActivity(`${r2Name} (${dev.name}) is now ${dev.state2 ? "ON ⚡" : "OFF 🌙"}${actorSuffix}`, dev.state2 ? "on" : "off");
+        }
+
+        dev._lastActor = null;
+        dev._lastLoggedState = dev.state;
+        if (dev.dual) dev._lastLoggedState2 = dev.state2;
       });
 
       // Render UI components
@@ -153,6 +184,19 @@
       } else {
         this.data.publicSwitchIds.push(devId);
         if (NARI.showToast) NARI.showToast("Switch marked as Public (Anyone can edit/delete)", "ok");
+      }
+      this.save();
+      this.renderSidebar();
+    },
+
+    setSwitchPublic(devId, isPublic) {
+      if (!devId) return;
+      if (!this.data.publicSwitchIds) this.data.publicSwitchIds = [];
+      const idx = this.data.publicSwitchIds.indexOf(devId);
+      if (isPublic && idx === -1) {
+        this.data.publicSwitchIds.push(devId);
+      } else if (!isPublic && idx >= 0) {
+        this.data.publicSwitchIds.splice(idx, 1);
       }
       this.save();
       this.renderSidebar();
@@ -260,7 +304,7 @@
       
       const passData = {
         gid: guestId,
-        hname: this.data.homeName || "NARI Home",
+        hname: this.data.homeName || "NARI Smart Home",
         gname: name || "Guest",
         sw: allowedSwitchIds,
         exp: expTime,
@@ -295,7 +339,7 @@
     },
 
     _checkGuestUrl() {
-      const hash = window.location.hash || "";
+      const hash = (typeof window !== "undefined" && window.location && window.location.hash) || "";
       if (!hash.startsWith("#guest=")) return;
 
       try {
@@ -395,18 +439,6 @@
 
       if (btnMenu) btnMenu.addEventListener("click", () => this.openSidebar());
       if (backdrop) backdrop.addEventListener("click", () => this.closeSidebar());
-
-      // Also allow the top share button to open the Guest pass section directly
-      const btnShare = document.getElementById("btnShare");
-      if (btnShare) {
-        btnShare.addEventListener("click", () => {
-          this.openSidebar();
-          setTimeout(() => {
-            const el = document.getElementById("secGuestPass");
-            if (el) el.scrollIntoView({ behavior: "smooth" });
-          }, 300);
-        });
-      }
     },
 
     openSidebar() {
@@ -434,8 +466,8 @@
         <div class="log-item">
           <div class="log-dot ${l.state === 'on' ? 'on' : 'off'}"></div>
           <div class="log-content">
-            <span class="log-text">${l.text}</span>
-            <span class="log-time">${l.time} &bull; ${l.date}</span>
+            <span class="log-text">${escHtml(l.text)}</span>
+            <span class="log-time">${escHtml(l.time)} &bull; ${escHtml(l.date)}</span>
           </div>
         </div>
       `).join("");
@@ -457,7 +489,7 @@
           <div style="display:flex;align-items:center;gap:12px;">
             <div class="home-icon"><i class="fa-solid fa-house-chimney"></i></div>
             <div>
-              <h3 style="margin:0;font-size:1.1rem;color:#f4f4f5;">${this.data.homeName || 'My Home'}</h3>
+              <h3 style="margin:0;font-size:1.1rem;color:#f4f4f5;">${escHtml(this.data.homeName || 'My Home')}</h3>
               <div class="role-badge ${isAdmin ? 'admin' : 'member'}">
                 ${isAdmin ? '<i class="fa-solid fa-crown"></i> Home Admin (Supervisor)' : '<i class="fa-solid fa-user-group"></i> Family Member'}
               </div>
@@ -522,10 +554,10 @@
                   return `
                     <div class="active-guest-row">
                       <div>
-                        <b>${g.name}</b>
+                        <b>${escHtml(g.name)}</b>
                         <span class="small muted">${timeLeft > 60 ? Math.round(timeLeft/60) + 'h left' : timeLeft + 'm left'} &bull; ${g.swCount} switches</span>
                       </div>
-                      <button class="btn-revoke" onclick="NARI.sharing.revokeGuestPass('${g.id}')" title="Revoke now">Stop 🚫</button>
+                      <button class="btn-revoke" onclick="NARI.sharing.revokeGuestPass('${escHtml(g.id)}')" title="Revoke now">Stop 🚫</button>
                     </div>
                   `;
                 }).join("")}
@@ -548,12 +580,12 @@
                   <div class="member-info">
                     <div class="avatar admin"><i class="fa-solid fa-crown"></i></div>
                     <div>
-                      <b>${a.name}</b>
+                      <b>${escHtml(a.name)}</b>
                       <span class="role-tag">${a.role === 'primary' ? '👑 Primary Admin' : '👑 Co-Admin'}</span>
                     </div>
                   </div>
                   ${(isAdmin && a.role !== 'primary') ? `
-                    <button class="btn-demote" onclick="NARI.sharing.demoteToMember('${a.email}')" title="Demote to Member">Demote</button>
+                    <button class="btn-demote" onclick="NARI.sharing.demoteToMember('${escHtml(a.email)}')" title="Demote to Member">Demote</button>
                   ` : ''}
                 </div>
               `).join("")}
@@ -564,16 +596,16 @@
                   <div class="member-info">
                     <div class="avatar"><i class="fa-solid fa-user"></i></div>
                     <div>
-                      <b>${m.name}</b>
-                      <span class="small muted">${m.email}</span>
+                      <b>${escHtml(m.name)}</b>
+                      <span class="small muted">${escHtml(m.email)}</span>
                     </div>
                   </div>
                   <div style="display:flex;gap:4px;">
                     ${(isAdmin && admins.length < 2) ? `
-                      <button class="btn-promote" onclick="NARI.sharing.promoteToCoAdmin('${m.email}')" title="Make Co-Admin">Make Admin 👑</button>
+                      <button class="btn-promote" onclick="NARI.sharing.promoteToCoAdmin('${escHtml(m.email)}')" title="Make Co-Admin">Make Admin 👑</button>
                     ` : ''}
                     ${isAdmin ? `
-                      <button class="btn-remove" onclick="NARI.sharing.removeFamilyMember('${m.email}')" title="Remove Member">✕</button>
+                      <button class="btn-remove" onclick="NARI.sharing.removeFamilyMember('${escHtml(m.email)}')" title="Remove Member">✕</button>
                     ` : ''}
                   </div>
                 </div>

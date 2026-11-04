@@ -1,23 +1,21 @@
 /* NARI Smart Home - service worker.
- * Cache-first for the static app shell (works offline / on LAN with no internet).
- * Network-first for the firmware manifest so update checks are never stale.
- * Only same-origin GETs are handled; LAN device calls and MQTT WebSockets are untouched.
- * Bump CACHE_VERSION on every release so installed apps pick up new files. */
-const CACHE_VERSION = "nari-shell-v1.2.4";
+ * Network-first for navigation & app shell so updates appear immediately.
+ * Fallback to cache when offline (works offline / on LAN with no internet). */
+const CACHE_VERSION = "nari-shell-v2.4.0";
 
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./css/app.css",
-  "./js/config.js",
-  "./js/store.js",
-  "./js/transport.js",
-  "./js/audio.js",
-  "./js/sensors.js",
-  "./js/scenes.js",
-  "./js/app.js",
-  "./js/sharing.js",
+  "./css/app.css?v=2.4.0",
+  "./js/config.js?v=2.4.0",
+  "./js/store.js?v=2.4.0",
+  "./js/transport.js?v=2.4.0",
+  "./js/audio.js?v=2.4.0",
+  "./js/sensors.js?v=2.4.0",
+  "./js/scenes.js?v=2.4.0",
+  "./js/app.js?v=2.4.0",
+  "./js/sharing.js?v=2.4.0",
   "./icons/icon.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -33,11 +31,10 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_VERSION)
-      // Cache each file independently so one missing optional file (e.g. config.local.js) never aborts install.
       .then((cache) => Promise.all(APP_SHELL.map((url) => cache.add(url).catch(() => null))))
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -55,23 +52,45 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Firmware manifest / binaries: always go to the network.
+  // Firmware binaries: always go to network
   if (url.pathname.includes("/firmware/")) return;
 
-  // Deployment config holds per-deployment values: prefer fresh, fall back to cache.
-  if (url.pathname.endsWith("/js/config.local.js")) {
+  // Network-first for navigation (HTML page): always get latest deployed version if online
+  if (req.mode === "navigate" || url.pathname.endsWith(".html") || url.pathname === "/") {
     event.respondWith(
       fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+        }
         return res;
-      }).catch(() => caches.match(req))
+      }).catch(async () => {
+        return (await caches.match("./index.html")) ||
+               (await caches.match("./")) ||
+               (await caches.match("/index.html")) ||
+               (await caches.match(req, { ignoreSearch: true }));
+      })
     );
     return;
   }
 
+  // Network-first for CSS and JS to prevent stale UI
+  if (url.pathname.endsWith(".css") || url.pathname.endsWith(".js")) {
+    event.respondWith(
+      fetch(req).then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+        }
+        return res;
+      }).catch(() => caches.match(req, { ignoreSearch: true }))
+    );
+    return;
+  }
+
+  // Cache-first for images and fonts
   event.respondWith(
-    caches.match(req, { ignoreSearch: true }).then((cached) => {
+    caches.match(req).then((cached) => {
       if (cached) return cached;
       return fetch(req).then((res) => {
         if (res && res.ok) {
@@ -79,7 +98,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
         }
         return res;
-      }).catch(() => (req.mode === "navigate" ? caches.match("./index.html") : undefined));
+      });
     })
   );
 });

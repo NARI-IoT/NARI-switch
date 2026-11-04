@@ -16,6 +16,8 @@
   const { store, bus, transport, audio } = NARI;
  
   const REFRACTORY = { clap: 900, whistle: 1500, voice: 1200, shake: 1500, flick: 900, flip: 1200, compass: 2500, light: 60000, battery: 30000, geofence: 10000, presence: 20000, nfc: 1500, idle: 60000, schedule: 30000, tilt: 0, effect: 0 };
+  const BUILTIN_VOICE_ON = "లైట్ వెయ్యి, లైట్ ఆన్, స్విచ్ ఆన్, ఫ్యాన్ వెయ్యి, light vey, light veyyi, switch vey, fan vey";
+  const BUILTIN_VOICE_OFF = "లైట్ ఆపు, లైట్ ఆఫ్, స్విచ్ ఆఫ్, ఫ్యాన్ ఆపు, light aapu, switch aapu, fan aapu";
  
   const hub = {
     lastFire: {},                // `${id}:${type}` -> timestamp
@@ -35,14 +37,36 @@
       if (ref && now - (this.lastFire[key] || 0) < ref) return false;
       this.lastFire[key] = now;
  
+      const cfg = (dev.triggers && dev.triggers[type]) || {};
+      const targetRelay = dev.dual ? (cfg.targetRelay || "both") : "relay1";
+
       let target;
       if (action === "on") target = true;
       else if (action === "off") target = false;
+      else if (targetRelay === "relay2") target = !dev.state2;
+      else if (targetRelay === "both") target = !(dev.state || dev.state2);
       else target = !dev.state;
-      if ((action === "on" || action === "off") && dev.state === target && detail && detail.skipIfSame) return false;
- 
-      const via = await transport.setState(index, target, { source: type });
-      bus.emit("trigger:fired", { index, type, action, target, via, detail: detail || {} });
+
+      if (action === "on" || action === "off") {
+        const curMatch = targetRelay === "relay2"
+          ? dev.state2 === target
+          : targetRelay === "both"
+            ? (dev.state === target && dev.state2 === target)
+            : dev.state === target;
+        if (curMatch && detail && detail.skipIfSame) return false;
+      }
+
+      let via = null;
+      if (targetRelay === "both") {
+        const v1 = await transport.setState(index, target, { source: type, relay: 1 });
+        const v2 = await transport.setState(index, target, { source: type, relay: 2 });
+        via = v1 || v2;
+      } else if (targetRelay === "relay2") {
+        via = await transport.setState(index, target, { source: type, relay: 2 });
+      } else {
+        via = await transport.setState(index, target, { source: type, relay: 1 });
+      }
+      bus.emit("trigger:fired", { index, type, action, target, targetRelay, via, detail: detail || {} });
       if (NARI.settings.hapticFeedback && navigator.vibrate) { try { navigator.vibrate(via ? 40 : [30, 60, 30]); } catch (e) {} }
       return !!via;
     },
@@ -179,8 +203,10 @@
       bus.emit("voice:heard", { text: alts[0] });
       this.devicesWith("voice").forEach(i => {
         const cfg = store.devices[i].triggers.voice;
-        const onScore = bestPhraseMatch(heard, cfg.on);
-        const offScore = bestPhraseMatch(heard, cfg.off);
+        const onPhrases = [cfg.on, BUILTIN_VOICE_ON].filter(Boolean).join(", ");
+        const offPhrases = [cfg.off, BUILTIN_VOICE_OFF].filter(Boolean).join(", ");
+        const onScore = bestPhraseMatch(heard, onPhrases);
+        const offScore = bestPhraseMatch(heard, offPhrases);
         const toggleScore = bestPhraseMatch(heard, cfg.toggle || "");
         const best = Math.max(onScore, offScore, toggleScore);
         if (best < 0.78) return;

@@ -1,7 +1,7 @@
 {
-  "version": "1.2.0",
-  "releaseDate": "2026-10-05",
-  "title": "Secure & Reliable Update",
-  "notes": "Authenticated local control, real over-the-air updates with progress, and cloud command support.",
+  "version": "1.2.4",
+  "releaseDate": "2026-11-01",
+  "title": "Self-Healing DHCP IP, Home Assistant Auto-Discovery, Hardware Inching & Child Lock",
+  "notes": "Adds self-healing DHCP IP broadcast over MQTT, Home Assistant MQTT Auto-Discovery, persistent hardware inching auto-off (even from the wall switch), physical wall-switch child lock, 60s boot-window guard on 5-flip factory reset, and 90s power-cut router race immunity.",
   "binUrl": "http://129.225.82.9/firmware/nari_switch_esp01s.bin"
 }

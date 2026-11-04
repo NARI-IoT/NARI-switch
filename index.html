@@ -5,22 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>NARI Smart Home</title>
   <meta name="description" content="NARI Smart Home: control your smart switches instantly over your home Wi-Fi and from anywhere via the cloud. Install it as an app, works offline on your local network.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://narismarthome.com/">
+  <meta name="keywords" content="NARI Smart Home, Smart IoT Solutions, smart switch, smart relay, IoT dashboard, ESP32, MQTT controller">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="NARI Smart Home">
-  <meta property="og:description" content="Control NARI smart switches over LAN and cloud with phone-sensor automations.">
-  <meta property="og:image" content="icons/icon-512.png">
-  <meta name="twitter:card" content="summary">
-  <meta name="theme-color" content="#0b1a13">
+  <meta property="og:url" content="https://narismarthome.com/">
+  <meta property="og:title" content="NARI Smart Home — Smart IoT Solutions">
+  <meta property="og:description" content="Control NARI smart switches over local Wi-Fi and Cloud with real-time sync and phone-sensor automations.">
+  <meta property="og:image" content="https://narismarthome.com/icons/icon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#060B14">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="NARI Home">
+  <meta name="apple-mobile-web-app-title" content="NARI Smart Home">
+  
+  <!-- Structured Data for Google Rich Snippets -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "NARI Smart Home",
+    "alternateName": "Smart IoT Solutions",
+    "url": "https://narismarthome.com/",
+    "applicationCategory": "SmartHomeApplication",
+    "operatingSystem": "All",
+    "description": "Smart IoT Solutions: Control smart switches over local Wi-Fi and Cloud with real-time sync and phone-sensor automations."
+  }
+  </script>
   
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/icon.svg?v=2.2.0" type="image/svg+xml">
+  <link rel="alternate icon" href="icons/icon-192.png?v=2.2.0" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=2.2.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-  <link rel="stylesheet" href="css/app.css?v=1.2.2">
+  <link rel="stylesheet" href="css/app.css?v=2.4.0">
 
   <!-- MQTT client for WebSockets -->
   <script src="vendor/js/mqtt.min.js"></script>
@@ -43,13 +65,13 @@
   <!-- Top App Header -->
   <header>
     <div class="brand">
-      <button class="icon-btn" id="btnMenu" title="Family &amp; Sharing Menu" style="margin-right:2px;">
+      <button class="icon-btn" id="btnMenu" title="Family &amp; Sharing Menu">
         <i class="fa-solid fa-bars"></i>
       </button>
-      <div class="logo"><i class="fa-solid fa-house-signal"></i></div>
-      <div>
-        NARI Home
-        <small>Smart Switch Control</small>
+      <div class="logo"><img src="icons/icon-192.png?v=2.2.0" alt="NARI" class="brand-logo-img"></div>
+      <div class="brand-text">
+        <span class="brand-title">NARI Smart Home</span>
+        <small>Smart IoT Solutions</small>
       </div>
     </div>
     <div class="header-actions">
@@ -58,6 +80,9 @@
           <i class="fa-brands fa-google"></i> Login
         </button>
       </div>
+      <button class="icon-btn" id="btnRefresh" title="Refresh switches &amp; online status">
+        <i class="fa-solid fa-arrows-rotate"></i>
+      </button>
       <button class="icon-btn" id="btnDiag" title="Connection status">
         <i class="fa-solid fa-heart-pulse"></i>
         <span class="dot hidden" id="diagDot"></span>
@@ -77,14 +102,103 @@
     </div>
   </header>
 
-  <!-- Connection & Status Bar -->
-  <div class="status-strip" id="statusStrip"></div>
+  <!-- Drag / Pull To Refresh Indicator -->
+  <div class="pull-to-refresh" id="pullToRefresh">
+    <div class="ptr-content">
+      <i class="fa-solid fa-arrow-down ptr-icon" id="ptrIcon"></i>
+      <div class="ptr-spinner hidden" id="ptrSpinner"></div>
+      <span class="ptr-text" id="ptrText">Pull down to refresh</span>
+    </div>
+  </div>
+
+  <!-- Cloud Web Hub Badge -->
+  <div class="hub-pill-wrapper">
+    <div class="hub-pill">
+      <i class="fa-solid fa-bolt" style="color:#f59e0b;font-size:0.75rem;"></i>
+      <span>narismarthome.com &bull; Cloud Web Hub</span>
+    </div>
+  </div>
+
+  <!-- Hero Dashboard Heading -->
+  <div class="dash-hero">
+    <h1 class="dash-title">Smart Relay Dashboard</h1>
+    <p class="dash-sub">Real-time Multi-Device Control &amp; Family Sync</p>
+  </div>
+
+  <!-- Connection & 256-Bit Encryption Security Bar -->
+  <div class="status-edge-bar" id="statusEdgeBar">
+    <div class="pill-edge ok" id="cloudEdgeStatus">
+      <span class="led"></span>
+      <span id="cloudEdgeText">Live Connected (Cloudflare Edge)</span>
+    </div>
+    <div class="pill-edge security">
+      <i class="fa-solid fa-lock" style="color:#fbbf24;"></i>
+      <span>256-Bit Encrypted</span>
+    </div>
+  </div>
+
+  <!-- Connection & Status Bar (Diagnostics / Mixed Content) -->
+  <div class="status-strip hidden" id="statusStrip"></div>
+
+  <!-- SmartThings / Apple Home Live Energy & Active Appliances Pulse Strip -->
+  <section class="home-pulse-bar" id="homePulseBar" aria-label="Home Energy and Appliance Summary"></section>
+
+  <!-- 1-Tap Horizontal Smart Scenes Ribbon -->
+  <section class="dashboard-scenes-wrap" id="dashboardScenesBar" aria-label="Quick Smart Scenes"></section>
+
+  <!-- Master Actions Bar (All ON / All OFF / Add Switch) -->
+  <div class="master-action-bar">
+    <button class="btn-master" id="btnMasterOn">
+      <i class="fa-solid fa-sun" style="color:#fbbf24;"></i> All ON
+    </button>
+    <button class="btn-master" id="btnMasterOff">
+      <i class="fa-solid fa-moon" style="color:#fde047;"></i> All OFF
+    </button>
+    <button class="btn-master primary" id="btnMasterAdd">
+      <i class="fa-solid fa-plus"></i> Add Switch
+    </button>
+  </div>
+
+  <!-- Room Filters Horizontal Tabs -->
+  <div class="room-filter-bar" id="roomFilterBar">
+    <button class="room-pill active" data-room="all">All Devices</button>
+  </div>
 
   <!-- System Warning & Mixed Content Banners -->
-  <div id="banners" style="width: 100%; max-width: 520px;"></div>
+  <div id="banners" style="width: 100%; max-width: 540px;"></div>
 
   <!-- Responsive Device Grid -->
   <main class="container" id="deviceList"></main>
+
+  <!-- Floating Bilingual Voice Recognition Feedback Pill -->
+  <div class="voice-live-pill hidden" id="voiceLivePill">
+    <span class="voice-pulse-dot"></span>
+    <span id="voiceLivePillText">Listening (EN / తెలుగు)...</span>
+  </div>
+
+  <!-- Flagship Glassmorphic Bottom Navigation Dock -->
+  <nav class="bottom-nav-dock" id="bottomNavDock" aria-label="Primary Navigation">
+    <button class="bnav-item active" id="bnavHome" onclick="NARI.app.setBottomTab('home')">
+      <i class="fa-solid fa-house-Chimney-window fa-house"></i>
+      <span>Home</span>
+    </button>
+    <button class="bnav-item" id="bnavScenes" onclick="NARI.app.setBottomTab('scenes')">
+      <i class="fa-solid fa-wand-magic-sparkles"></i>
+      <span>Scenes</span>
+    </button>
+    <button class="bnav-item" id="bnavEnergy" onclick="NARI.app.setBottomTab('energy')">
+      <i class="fa-solid fa-bolt-lightning"></i>
+      <span>Energy</span>
+    </button>
+    <button class="bnav-item" id="bnavFamily" onclick="NARI.app.setBottomTab('family')">
+      <i class="fa-solid fa-users-gear"></i>
+      <span>Family</span>
+    </button>
+    <button class="bnav-item" id="bnavSettings" onclick="NARI.app.setBottomTab('settings')">
+      <i class="fa-solid fa-sliders"></i>
+      <span>Settings</span>
+    </button>
+  </nav>
 
   <!-- Bottom Sheet / Modal Overlay -->
   <div class="overlay" id="overlay">
@@ -101,19 +215,32 @@
 
   <!-- App Architecture Scripts -->
   <script src="js/config.local.js" onerror="this.remove()"></script>
-  <script src="js/config.js?v=1.2.2"></script>
-  <script src="js/store.js?v=1.2.2"></script>
-  <script src="js/transport.js?v=1.2.2"></script>
-  <script src="js/audio.js?v=1.2.2"></script>
-  <script src="js/sensors.js?v=1.2.2"></script>
-  <script src="js/scenes.js?v=1.2.2"></script>
-  <script src="js/app.js?v=1.2.2"></script>
-  <script src="js/sharing.js?v=1.2.2"></script>
+  <script src="js/config.js?v=2.4.0"></script>
+  <script src="js/store.js?v=2.4.0"></script>
+  <script src="js/transport.js?v=2.4.0"></script>
+  <script src="js/audio.js?v=2.4.0"></script>
+  <script src="js/sensors.js?v=2.4.0"></script>
+  <script src="js/scenes.js?v=2.4.0"></script>
+  <script src="js/app.js?v=2.4.0"></script>
+  <script src="js/sharing.js?v=2.4.0"></script>
   <script>
-    // Offline support: cache the app shell so the app opens (and LAN control works) with no internet.
+    // Offline support with instant auto-update
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW registration failed:", e));
+        navigator.serviceWorker.register("sw.js?v=2.4.0").then((reg) => {
+          reg.update();
+          reg.addEventListener("updatefound", () => {
+            const newWorker = reg.installing;
+            if (newWorker) {
+              newWorker.addEventListener("statechange", () => {
+                if (newWorker.state === "activated" || (newWorker.state === "installed" && navigator.serviceWorker.controller)) {
+                  console.log("[PWA] New version activated, refreshing...");
+                  window.location.reload();
+                }
+              });
+            }
+          });
+        }).catch((e) => console.warn("SW registration failed:", e));
       });
     }
   </script>

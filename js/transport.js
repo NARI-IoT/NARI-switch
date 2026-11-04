@@ -15,9 +15,10 @@
   const NARI = global.NARI;
   const { store, bus } = NARI;
  
-  const CLOUD_STALE_MS = 3 * 60 * 1000;
+  const CLOUD_STALE_MS = 120 * 1000; // universal 120s connectivity threshold (AGENTS.md rule 1 & 8)
+  const CONFIRMATION_TIMEOUT_MS = 8000; // 8s hardware confirmation rule (AGENTS.md rule 2)
   const LAN_FRESH_MS   = 20 * 1000;   // ping was within 20 s → "fresh"
-  const LAN_GRACE_MS   = 55 * 1000;   // keep card online up to 55 s after last OK ping (covers missed polls)
+  const LAN_GRACE_MS   = 120 * 1000;  // universal 120s threshold (prevents false-offline UI lockouts)
   const LAN_BAD_LIMIT  = 3;           // consecutive failures before declaring LAN down
  
   const transport = {
@@ -99,6 +100,20 @@
       if (!this.client || !this.cloudConnected) return;
       const s = NARI.settings;
       if (!s || !s.topicPrefix) return;
+
+      // Wildcard subscriptions allow automatic discovery of newly paired switches
+      this.client.subscribe(`${s.topicPrefix}/+/status`, { qos: 0 });
+      this.client.subscribe(`${s.topicPrefix}/+/state`, { qos: 0 });
+      this.client.subscribe("device/+/status", { qos: 0 });
+      this.client.subscribe("device/+/state", { qos: 0 });
+      this.client.subscribe("device/+/hb", { qos: 0 });
+      this.client.subscribe("device/+/presence", { qos: 0 });
+      this.client.subscribe("device/+/signal", { qos: 0 });
+      this.client.subscribe("device/+/ip", { qos: 0 });
+      this.client.subscribe("device/+/ota/progress", { qos: 0 });
+      this.client.subscribe("device/+/ota/error", { qos: 0 });
+      this.client.subscribe("device/+/ir/learned", { qos: 0 });
+
       if (store.devices && store.devices.length > 0) {
         store.devices.forEach(dev => {
           const id = store.identifierOf(dev);
@@ -107,9 +122,28 @@
             this.client.subscribe(`${s.topicPrefix}/${id}/status`, { qos: 0 });
             this.client.subscribe(`${s.topicPrefix}/${id}/ota/error`, { qos: 0 });
             this.client.subscribe(`${s.topicPrefix}/${id}/ota/progress`, { qos: 0 });
+            this.client.subscribe(`device/${id}/state`, { qos: 0 });
+            this.client.subscribe(`device/${id}/status`, { qos: 0 });
+            this.client.subscribe(`device/${id}/ota/error`, { qos: 0 });
+            this.publish(`device/${id}/cmd`, "STATUS", { qos: 1 });
+            this.publish(`device/${id}/cmd`, "QUERY", { qos: 1 });
           }
+          this._recomputeOnline(dev);
         });
+        this.publish("device/all/cmd", "STATUS", { qos: 1 });
+        this.publish("device/all/cmd", "QUERY", { qos: 1 });
       }
+    },
+
+    subscribeId(id) {
+      if (!this.client || !this.cloudConnected || !id) return;
+      const s = NARI.settings;
+      const cleanId = String(id).toLowerCase();
+      this.client.subscribe(`${s.topicPrefix}/${cleanId}/state`, { qos: 0 });
+      this.client.subscribe(`${s.topicPrefix}/${cleanId}/status`, { qos: 0 });
+      this.client.subscribe(`device/${cleanId}/state`, { qos: 0 });
+      this.client.subscribe(`device/${cleanId}/status`, { qos: 0 });
+      this.client.subscribe(`device/${cleanId}/ota/progress`, { qos: 0 });
     },
 
     disconnectCloud() {
@@ -141,8 +175,20 @@
  
       if (kind === "state") {
         const parsed = parseState(payload);
-        if (parsed.state !== null) dev.state = parsed.state;
+        const r1 = parsed.relay1 !== null ? parsed.relay1 : parsed.state;
+        if (r1 !== null) this._applyReported(dev, 1, r1);
+        if (parsed.relay2 !== null) this._applyReported(dev, 2, parsed.relay2);
         if (parsed.fw) dev.fw = parsed.fw;
+        if (parsed.ip && /^\d{1,3}(\.\d{1,3}){3}$/.test(parsed.ip) && parsed.ip !== "0.0.0.0") {
+          dev.ip = parsed.ip;
+        }
+        if (typeof parsed.rssi === "number") dev.lanRssi = parsed.rssi;
+        if (typeof parsed.autoOffSec === "number") dev.autoOffSec = parsed.autoOffSec;
+        if (typeof parsed.lock === "boolean") dev.wallSwitchLock = parsed.lock;
+        if (typeof parsed.timerRemSec === "number") {
+          dev.timerRemSec = parsed.timerRemSec;
+          dev.hwTimerEndsAt = parsed.timerRemSec > 0 ? (now + parsed.timerRemSec * 1000) : 0;
+        }
         dev.lastCloudSeen = now;
         if (dev.cloudOnline !== false) dev.cloudOnline = true;
         this._clearPending(dev);
@@ -152,9 +198,33 @@
         bus.emit("device:updated", idx);
       } else if (kind === "status") {
         dev.cloudOnline = payload.toLowerCase() === "online";
-        if (dev.cloudOnline) dev.lastCloudSeen = now;
+        if (dev.cloudOnline) {
+          dev.lastCloudSeen = now;
+          this._clearPending(dev);
+          dev._isVerifying = false;
+        } else {
+          dev.isOnline = false;
+        }
         this._recomputeOnline(dev);
         bus.emit("device:updated", idx);
+      } else if (kind === "hb" || kind === "presence" || kind === "signal" || kind === "ip") {
+        dev.lastCloudSeen = now;
+        dev.cloudOnline = true;
+        this._clearPending(dev);
+        dev._isVerifying = false;
+        dev.isOnline = true;
+        dev.link = "cloud";
+        if (kind === "signal" && typeof payload === "string" && !isNaN(parseInt(payload, 10))) {
+          dev.lanRssi = parseInt(payload, 10);
+        }
+        if (kind === "ip" && typeof payload === "string" && payload.includes(".")) {
+          dev.ip = payload.trim();
+        }
+        store.save();
+        bus.emit("device:updated", idx);
+      } else if (kind === "ir/learned") {
+        // Firmware payload: "<PROTOCOL>:0x<HEX>:<bits>"
+        bus.emit("ir:learned", { index: idx, payload });
       } else if (kind === "ota/error") {
         bus.emit("toast", { text: `${dev.name}: firmware update failed - ${payload}`, level: "error" });
         bus.emit("ota:progress", { index: idx, status: "error", message: payload });
@@ -220,12 +290,86 @@
       dev.lanRssi = typeof data.rssi === "number" ? data.rssi : dev.lanRssi;
       if (data.id && !dev.id) dev.id = data.id;
       if (data.fw) dev.fw = data.fw;
-      if (typeof data.state === "number") dev.state = data.state === 1;
+      if (typeof data.autoOffSec === "number") dev.autoOffSec = data.autoOffSec;
+      if (typeof data.lock === "number" || typeof data.lock === "boolean") dev.wallSwitchLock = data.lock === 1 || data.lock === true;
+      if (typeof data.timerRemSec === "number") {
+        dev.timerRemSec = data.timerRemSec;
+        dev.hwTimerEndsAt = data.timerRemSec > 0 ? (Date.now() + data.timerRemSec * 1000) : 0;
+      }
+      if (typeof data.relay1 === "number" || typeof data.relay1 === "boolean") {
+        this._applyReported(dev, 1, data.relay1 === 1 || data.relay1 === true);
+      } else if (typeof data.state === "number" || typeof data.state === "boolean") {
+        this._applyReported(dev, 1, data.state === 1 || data.state === true);
+      }
+      if (typeof data.relay2 === "number" || typeof data.relay2 === "boolean") {
+        this._applyReported(dev, 2, data.relay2 === 1 || data.relay2 === true);
+      }
       this._lanProbeSucceededOnce = true;
       return data;
     },
  
     lanFresh(dev) { return dev.lanOk && Date.now() - dev.lastLanOk < LAN_FRESH_MS; },
+
+    // ---------------- anti-flicker: expected-state guard ----------------
+    // After a user/automation command we expect the relay to reach `v`. Until the device confirms it
+    // (or the 8s confirmation window ends) any contradicting report (stale retained MQTT message,
+    // duplicate topic echo, in-flight LAN poll) is ignored so the UI never bounces.
+    _expect(dev, relay, v, cmdTime) {
+      dev._expect = dev._expect || {};
+      dev._expect[relay] = { v: !!v, until: cmdTime + CONFIRMATION_TIMEOUT_MS, confirmed: false };
+    },
+    _clearExpect(dev, relay) { if (dev._expect) delete dev._expect[relay]; },
+    isPending(dev, relay) {
+      const e = dev._expect && dev._expect[relay];
+      return !!e && !e.confirmed && Date.now() < e.until;
+    },
+    _trackEnergyTransition(dev, relay, newVal) {
+      if (!dev) return;
+      const now = Date.now();
+      const todayKey = new Date().toISOString().slice(0, 10);
+      if (dev.energyDayKey !== todayKey) {
+        dev.energyDayKey = todayKey;
+        dev.runtimeMs1 = 0;
+        dev.runtimeMs2 = 0;
+        dev.lastOnAt1 = dev.state ? now : 0;
+        dev.lastOnAt2 = dev.state2 ? now : 0;
+      }
+      if (relay === 2) {
+        const prev = !!dev.state2;
+        if (prev && !newVal && dev.lastOnAt2) {
+          dev.runtimeMs2 = (dev.runtimeMs2 || 0) + Math.max(0, now - dev.lastOnAt2);
+          dev.lastOnAt2 = 0;
+        } else if (!prev && newVal) {
+          dev.lastOnAt2 = now;
+        }
+      } else {
+        const prev = !!dev.state;
+        if (prev && !newVal && dev.lastOnAt1) {
+          dev.runtimeMs1 = (dev.runtimeMs1 || 0) + Math.max(0, now - dev.lastOnAt1);
+          dev.lastOnAt1 = 0;
+        } else if (!prev && newVal) {
+          dev.lastOnAt1 = now;
+        }
+      }
+    },
+    /** Apply a device-reported relay state. Returns false when ignored as stale. */
+    _applyReported(dev, relay, v) {
+      const e = dev._expect && dev._expect[relay];
+      const now = Date.now();
+      if (e && now < e.until) {
+        if (v === e.v) {
+          e.confirmed = true;
+          e.until = Math.min(e.until, now + 1500); // short settle window for trailing duplicate echoes
+        } else {
+          return false;
+        }
+      } else if (e) {
+        delete dev._expect[relay];
+      }
+      this._trackEnergyTransition(dev, relay, !!v);
+      if (relay === 2) dev.state2 = v; else dev.state = v;
+      return true;
+    },
  
     // ---------------- command routing ----------------
     /** Set relay state. Returns "lan" | "cloud" | null (unreachable). */
@@ -233,17 +377,48 @@
       opts = opts || {};
       const dev = store.devices[index];
       if (!dev) return null;
+      const relayNum = opts.relay || 1;
       const quiet = !!opts.quiet;
       const timeout = opts.timeoutMs || NARI.settings.lanTimeoutMs;
- 
+      const targetStateBool = !!targetState;
+
+      const prevR1 = dev.state;
+      const prevR2 = dev.state2;
+      const prevOnline = dev.isOnline;
+      const cmdTime = Date.now();
+
+      // Optimistic state update (+ guard against stale echoes until the device confirms)
+      this._expect(dev, relayNum, targetStateBool, cmdTime);
+      this._trackEnergyTransition(dev, relayNum, targetStateBool);
+      if (relayNum === 2) {
+        dev.state2 = targetStateBool;
+      } else {
+        dev.state = targetStateBool;
+      }
+
       if (!quiet) { dev._isVerifying = true; bus.emit("device:updated", index); }
- 
+
       const tryLan = async () => {
         if (!this.lanAllowed(dev)) return false;
         try {
-          const text = await this.lanFetch(this.lanUrl(dev, "toggle", { state: targetState ? 1 : 0 }), timeout);
+          let text;
+          try {
+            // ESP32 firmware endpoint: /toggle?relay=1|2&state=1|0
+            text = await this.lanFetch(this.lanUrl(dev, "toggle", { relay: relayNum, state: targetStateBool ? 1 : 0 }), timeout);
+          } catch (e) {
+            if (relayNum === 2) {
+              // Fallback for any legacy modules mapping relay 2 to /toggle2
+              text = await this.lanFetch(this.lanUrl(dev, "toggle2", { state: targetStateBool ? 1 : 0 }), timeout);
+            } else {
+              throw e;
+            }
+          }
           const parsed = parseState(text);
-          dev.state = parsed.state === null ? targetState : parsed.state;
+          const lanVal = relayNum === 2
+            ? (parsed.relay2 !== null ? parsed.relay2 : targetStateBool)
+            : (parsed.relay1 !== null ? parsed.relay1 : (parsed.state !== null ? parsed.state : targetStateBool));
+          if (lanVal === targetStateBool) this._applyReported(dev, relayNum, lanVal);
+          else { this._clearExpect(dev, relayNum); if (relayNum === 2) dev.state2 = lanVal; else dev.state = lanVal; }
           dev.lanOk = true;
           dev.lastLanOk = Date.now();
           return true;
@@ -254,14 +429,18 @@
       };
       const tryCloud = () => {
         if (!this.cloudConnected) return false;
-        const ok = this.publish(this.topic(dev, "set"), targetState ? "1" : "0", { qos: 1 });
+        const id = store.identifierOf(dev);
+        const cmdPayload = (relayNum === 2)
+          ? (targetStateBool ? "r2:1" : "r2:0")
+          : (targetStateBool ? "r1:1" : "r1:0");
+        const ok = this.publish(`device/${id}/cmd`, cmdPayload, { qos: 1 });
+        this.publish(this.topic(dev, "set"), (relayNum === 2 ? cmdPayload : (targetStateBool ? "1" : "0")), { qos: 1 });
         if (!ok) return false;
-        dev.state = targetState;  // optimistic; corrected by the retained state echo
         dev.lastCloudCmd = Date.now();
-        if (!quiet) this._armPending(dev, index);
+        if (!quiet) this._armPending(dev, index, { relayNum, prevR1, prevR2, prevOnline, cmdTime });
         return true;
       };
- 
+
       let via = null;
       // Prefer whichever path answered most recently; always try the other one as a fallback.
       if (this.lanFresh(dev) || !this.cloudConnected) {
@@ -271,43 +450,116 @@
         // keep LAN knowledge warm in the background
         if (via === "cloud" && this.lanAllowed(dev) && !this.lanFresh(dev)) this.lanPing(dev, 600).catch(() => { dev.lanOk = false; });
       }
- 
-      dev._isVerifying = via === "cloud" && !quiet ? dev._isVerifying : false;
-      if (via === null) { dev.isOnline = false; dev._isVerifying = false; }
-      else { dev.isOnline = true; }
+
+      dev._isVerifying = !quiet && (this.isPending(dev, 1) || (dev.dual && this.isPending(dev, 2)));
+      if (via === "lan") {
+        dev.isOnline = true;
+      } else if (via === null) {
+        this._recomputeOnline(dev);
+        dev._isVerifying = false;
+      }
       dev.lastCmdVia = via;
       store.save();
       bus.emit("device:updated", index);
       if (via && !quiet) {
-        bus.emit("device:commanded", { index, state: dev.state, via, source: opts.source || "manual" });
+        bus.emit("device:commanded", { index, relay: relayNum, state: (relayNum === 2 ? dev.state2 : dev.state), via, source: opts.source || "manual" });
       }
       return via;
     },
+
+    async allOn(roomFilter) {
+      for (let i = 0; i < store.devices.length; i++) {
+        const dev = store.devices[i];
+        if (roomFilter && roomFilter !== "all" && (dev.room || "Living Room") !== roomFilter) continue;
+        await this.setState(i, true, { relay: 1, quiet: true });
+        if (dev.dual) await this.setState(i, true, { relay: 2, quiet: true });
+      }
+      store.save();
+      bus.emit("devices:changed");
+    },
+
+    async allOff(roomFilter) {
+      for (let i = 0; i < store.devices.length; i++) {
+        const dev = store.devices[i];
+        if (roomFilter && roomFilter !== "all" && (dev.room || "Living Room") !== roomFilter) continue;
+        await this.setState(i, false, { relay: 1, quiet: true });
+        if (dev.dual) await this.setState(i, false, { relay: 2, quiet: true });
+      }
+      store.save();
+      bus.emit("devices:changed");
+    },
  
-    _armPending(dev, index) {
+    _armPending(dev, index, ctx = {}) {
       const key = store.identifierOf(dev);
       this._clearPending(dev);
       dev._isVerifying = true;
       this.pendingEcho[key] = setTimeout(() => {
-        // Firmware answered nothing within 4s. Command was accepted by the broker (QoS1) so keep the
-        // optimistic state, but stop the "verifying" pulse and flag when the device is silent for long.
-        dev._isVerifying = false;
         delete this.pendingEcho[key];
-        this._recomputeOnline(dev);
-        bus.emit("device:updated", index);
-      }, 4000);
+        const current = store.devices[index];
+        if (!current) return;
+
+        const cmdTime = ctx.cmdTime || 0;
+        const rn = ctx.relayNum === 2 ? 2 : 1;
+        const exp = current._expect && current._expect[rn];
+        const confirmed = (exp && exp.confirmed) ||
+                          (!exp && ((current.lastCloudSeen && current.lastCloudSeen >= cmdTime) ||
+                                    (current.lastLanOk && current.lastLanOk >= cmdTime)));
+        this._clearExpect(current, rn);
+
+        if (!confirmed) {
+          // AGENTS.md Rule 2: The 8s Confirmation Rule
+          // Hardware didn't confirm within 8s: Rollback to previous state and mark offline
+          if (ctx.relayNum === 2) {
+            current.state2 = ctx.prevR2 !== undefined ? ctx.prevR2 : false;
+          } else {
+            current.state = ctx.prevR1 !== undefined ? ctx.prevR1 : false;
+          }
+          current.isOnline = false;
+          current.cloudOnline = false;
+          current.link = "none";
+          current._isVerifying = false;
+          store.save();
+          bus.emit("device:updated", index);
+          bus.emit("toast", { text: `${current.name} is Offline (no response)`, level: "warn" });
+        } else {
+          current._isVerifying = false;
+          this._recomputeOnline(current);
+          store.save();
+          bus.emit("device:updated", index);
+        }
+      }, CONFIRMATION_TIMEOUT_MS);
     },
     _clearPending(dev) {
       const key = store.identifierOf(dev);
       if (this.pendingEcho[key]) { clearTimeout(this.pendingEcho[key]); delete this.pendingEcho[key]; }
     },
  
-    async setBootState(dev, mode) {
+    async setBootState(dev, mode, extra) {
+      extra = extra || {};
+      const autoOffSec = extra.autoOffSec !== undefined ? extra.autoOffSec : (dev.autoOffSec || 0);
+      const lock = extra.wallSwitchLock !== undefined ? (extra.wallSwitchLock ? 1 : 0) : (dev.wallSwitchLock ? 1 : 0);
       let ok = false;
       if (this.lanAllowed(dev)) {
-        try { await this.lanFetch(this.lanUrl(dev, "setBootState", { mode }), 800); ok = true; } catch (e) {}
+        try { await this.lanFetch(this.lanUrl(dev, "setBootState", { mode, autoOff: autoOffSec, autoOffSec, lock }), 800); ok = true; } catch (e) {}
       }
       if (this.publish(this.topic(dev, "config/boot"), mode, { qos: 1, retain: true })) ok = true;
+      this.publish(this.topic(dev, "config/inching"), String(autoOffSec), { qos: 1, retain: true });
+      this.publish(this.topic(dev, "config/lock"), String(lock), { qos: 1, retain: true });
+      return ok;
+    },
+
+    async setHardwareTimer(dev, seconds, targetStateBool) {
+      if (!dev) return false;
+      const sec = Math.max(0, Math.round(Number(seconds) || 0));
+      const st = targetStateBool ? 1 : 0;
+      dev.timerRemSec = sec;
+      dev.hwTimerEndsAt = sec > 0 ? (Date.now() + sec * 1000) : 0;
+      let ok = false;
+      if (this.lanAllowed(dev)) {
+        try { await this.lanFetch(this.lanUrl(dev, "timer", { sec, state: st }), 800); ok = true; } catch (e) {}
+      }
+      const payload = sec > 0 ? `${sec}:${st}` : "0";
+      if (this.publish(this.topic(dev, "timer"), payload, { qos: 1 })) ok = true;
       return ok;
     },
  
@@ -336,9 +588,11 @@
       }
       if (this.cloudConnected) {
         if (dev.cloudOnline === false) { dev.isOnline = false; dev.link = "cloud-offline"; return; }
-        dev.isOnline = true;
-        dev.link = cloudFresh || dev.cloudOnline === true ? "cloud" : "cloud-unverified";
-        return;
+        if (dev.cloudOnline === true || cloudFresh) {
+          dev.isOnline = true;
+          dev.link = "cloud";
+          return;
+        }
       }
       // Neither LAN fresh nor cloud connected. Only declare offline after LAN_GRACE_MS has expired.
       if (lanGrace) { dev.isOnline = true; dev.link = "lan-grace"; return; }
@@ -352,27 +606,24 @@
       this._polling = true;
       try {
         const devs = store.devices;
-        for (let i = 0; i < devs.length; i++) {
-          const dev = devs[i];
-          if (dev._isVerifying) continue;
+        await Promise.all(devs.map(async (dev, i) => {
+          if (dev._isVerifying) return;
           const key = store.identifierOf(dev);
-          const before = `${dev.isOnline}|${dev.link}|${dev.lanRssi}|${dev.state}`;
+          const before = `${dev.isOnline}|${dev.link}|${dev.lanRssi}|${dev.state}|${dev.state2}`;
           if (this.lanAllowed(dev)) {
             try {
               await this.lanPing(dev, 1400);
-              // Ping succeeded: reset bad-count
               this._lanBadCount[key] = 0;
             } catch (e) {
               this._lanBadCount[key] = (this._lanBadCount[key] || 0) + 1;
-              // Only clear lanOk after LAN_BAD_LIMIT consecutive failures (prevents one missed poll → offline)
               if (this._lanBadCount[key] >= LAN_BAD_LIMIT) {
                 dev.lanOk = false; dev.lanRssi = null; dev.rtt = null;
               }
             }
           } else { dev.lanOk = false; }
           this._recomputeOnline(dev);
-          if (before !== `${dev.isOnline}|${dev.link}|${dev.lanRssi}|${dev.state}`) bus.emit("device:updated", i);
-        }
+          if (before !== `${dev.isOnline}|${dev.link}|${dev.lanRssi}|${dev.state}|${dev.state2}`) bus.emit("device:updated", i);
+        }));
         bus.emit("poll:done");
       } finally { this._polling = false; }
     },
@@ -466,16 +717,30 @@
   };
  
   function parseState(payload) {
-    const out = { state: null, fw: null };
+    const out = { state: null, relay1: null, relay2: null, fw: null, ip: null, rssi: null, autoOffSec: null, lock: null, timerRemSec: null };
     if (payload === null || payload === undefined) return out;
     const p = String(payload).trim();
     const j = safeJson(p);
     if (j && typeof j === "object") {
       if (j.state !== undefined) out.state = j.state === 1 || j.state === "1" || j.state === true || String(j.state).toLowerCase() === "on";
+      if (j.relay1 !== undefined) out.relay1 = j.relay1 === 1 || j.relay1 === "1" || j.relay1 === true || String(j.relay1).toLowerCase() === "on";
+      if (j.relay2 !== undefined) out.relay2 = j.relay2 === 1 || j.relay2 === "1" || j.relay2 === true || String(j.relay2).toLowerCase() === "on";
       if (j.fw) out.fw = String(j.fw);
+      if (j.ip) out.ip = String(j.ip);
+      if (typeof j.rssi === "number") out.rssi = j.rssi;
+      if (typeof j.autoOffSec === "number") out.autoOffSec = j.autoOffSec;
+      if (typeof j.lock === "number" || typeof j.lock === "boolean") out.lock = j.lock === 1 || j.lock === true;
+      if (typeof j.timerRemSec === "number") out.timerRemSec = j.timerRemSec;
       return out;
     }
     const low = p.toLowerCase();
+    const m = low.match(/^r([12])\s*:\s*(1|0|on|off|true|false)$/);
+    if (m) {
+      const isTrue = ["1", "on", "true"].includes(m[2]);
+      if (m[1] === "1") { out.relay1 = isTrue; out.state = isTrue; }
+      else if (m[1] === "2") { out.relay2 = isTrue; }
+      return out;
+    }
     if (["1", "on", "true"].includes(low)) out.state = true;
     else if (["0", "off", "false"].includes(low)) out.state = false;
     return out;

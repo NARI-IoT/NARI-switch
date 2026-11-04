@@ -55,7 +55,7 @@ function check(name, ok, detail) {
 }
 function freshDevice(trig) {
   store.devices.length = 0;
-  const d = store.add({ name: "T", ip: "1.2.3.4", id: "sw_test" });
+  const d = store.add({ name: "T", ip: "1.2.3.4", id: "sw_test", dual: false });
   Object.keys(trig || {}).forEach(k => Object.assign(d.triggers[k], { enabled: true }, trig[k]));
   calls.length = 0;
   Object.keys(sensors.lastFire).forEach(k => delete sensors.lastFire[k]);

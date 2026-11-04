@@ -20,13 +20,14 @@
     lanToken: "",
     // LAN behaviour
     lanEnabled: true,
-    lanTimeoutMs: 400,
+    lanTimeoutMs: 1500,
     lanScanSubnets: "192.168.1,192.168.0,192.168.29,192.168.43,192.168.4",
-    // UX
+    // UX & Energy
     theme: "default",
     speakFeedback: false,
     hapticFeedback: true,
     voiceLang: "en-IN",
+    tariffRate: 7.5,
     // Home location (for geofence + sunrise/sunset)
     homeLat: null,
     homeLon: null,
@@ -53,6 +54,11 @@
     // Ensure deployment defaults from config.local.js are not shadowed by empty saved strings
     if (!merged.lanToken && DEFAULT_SETTINGS.lanToken) merged.lanToken = DEFAULT_SETTINGS.lanToken;
     if (!merged.brokerUrl || /YOUR-BROKER-HOST/.test(merged.brokerUrl)) merged.brokerUrl = DEFAULT_SETTINGS.brokerUrl;
+    if (typeof merged.tariffRate !== "number" || isNaN(merged.tariffRate) || merged.tariffRate <= 0) merged.tariffRate = 7.5;
+    // Auto-upgrade insecure ws:// to secure wss:// when page is loaded on https://
+    if (IS_SECURE_PAGE && /^ws:\/\//i.test(merged.brokerUrl) && /^wss:\/\//i.test(DEFAULT_SETTINGS.brokerUrl)) {
+      merged.brokerUrl = DEFAULT_SETTINGS.brokerUrl;
+    }
     return merged;
   }
  
