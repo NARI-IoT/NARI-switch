@@ -369,7 +369,8 @@
       if (e && now < e.until) {
         if (v === e.v) {
           e.confirmed = true;
-          e.until = Math.min(e.until, now + 1500); // short settle window for trailing duplicate echoes
+          // Maintain a 4s anti-bounce guard window against stale retained MQTT messages / delayed echoes
+          e.until = Math.max(e.until, now + 4000);
         } else {
           return false;
         }

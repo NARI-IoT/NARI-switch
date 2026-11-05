@@ -659,8 +659,15 @@
         const cfg = dev.triggers.schedule;
         // countdown timer
         if (cfg.timer && cfg.timer.endsAt && nowMs >= cfg.timer.endsAt) {
-          const act = cfg.timer.action; cfg.timer = null; store.save();
-          this.fire(i, "schedule", act, { timer: true }); bus.emit("device:updated", i);
+          const act = cfg.timer.action;
+          cfg.timer = null;
+          if (!cfg.rules || !cfg.rules.length) cfg.enabled = false;
+          store.save();
+          const rn = cfg.targetRelay === "relay2" ? 2 : 1;
+          if (!(act === "off" && transport && typeof transport.isPending === "function" && transport.isPending(dev, rn))) {
+            this.fire(i, "schedule", act, { timer: true });
+          }
+          bus.emit("device:updated", i);
         }
         const dk = store.identifierOf(dev);
         for (let t = Math.floor(from / 60000) * 60000; t <= nowMs; t += 60000) {

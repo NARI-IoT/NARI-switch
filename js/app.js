@@ -617,6 +617,27 @@
       setTimeout(() => { delete dev[lockKey]; }, 100);
 
       const target = relayNum === 2 ? !dev.state2 : !dev.state;
+
+      // When manually turning ON, clear any running countdown timer or auto-off inching
+      // so manual control persists until the user chooses to turn it off.
+      if (target) {
+        if (dev.triggers && dev.triggers.schedule && dev.triggers.schedule.timer) {
+          dev.triggers.schedule.timer = null;
+          if (!dev.triggers.schedule.rules || !dev.triggers.schedule.rules.length) {
+            dev.triggers.schedule.enabled = false;
+          }
+          store.save();
+          if (NARI.sensors) NARI.sensors.sync();
+        }
+        if (dev.hwTimerEndsAt || dev.timerRemSec) {
+          dev.hwTimerEndsAt = 0;
+          dev.timerRemSec = 0;
+          if (transport && typeof transport.setHardwareTimer === "function") {
+            transport.setHardwareTimer(dev, 0, false);
+          }
+        }
+      }
+
       await transport.setState(index, target, { relay: relayNum });
     },
 
