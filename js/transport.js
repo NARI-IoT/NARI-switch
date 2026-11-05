@@ -70,7 +70,7 @@
           this._setCloud("connected", "");
           this.resubscribeDevices();
         });
-        client.on("message", (topic, msg) => this._onMessage(topic, msg.toString().trim()));
+        client.on("message", (topic, msg, packet) => this._onMessage(topic, msg.toString().trim(), packet));
         client.on("reconnect", () => this._setCloud("reconnecting", ""));
         client.on("offline", () => this._setCloud("offline", ""));
         client.on("close", () => { if (this.cloudState === "connected") this._setCloud("offline", ""); });
@@ -159,7 +159,7 @@
       bus.emit("cloud:state", { state, error: this.cloudError });
     },
  
-    _onMessage(topic, payload) {
+    _onMessage(topic, payload, packet) {
       const parts = topic.split("/");
       if (parts.length < 3) return;
       const identifier = parts[1];
@@ -172,6 +172,7 @@
       }
       const dev = store.devices[idx];
       const now = Date.now();
+      const isRetained = !!(packet && packet.retain);
  
       if (kind === "state") {
         const parsed = parseState(payload);
@@ -181,9 +182,23 @@
         if (r1 !== null) a1 = this._applyReported(dev, 1, r1);
         if (parsed.relay2 !== null) a2 = this._applyReported(dev, 2, parsed.relay2);
 
-        // Anti-flicker guard: if reported states contradict pending target state, ignore stale echo
-        if (a1 === false && (parsed.relay2 === null || a2 === false)) {
-          return;
+        // Anti-flicker & resync guard: if reported state contradicts recent manual command or is stale retained, ignore
+        const uProt1 = dev.lastUserCmdAt && dev.lastUserCmdAt[1] && (now - dev.lastUserCmdAt[1] < 10000);
+        const uProt2 = dev.lastUserCmdAt && dev.lastUserCmdAt[2] && (now - dev.lastUserCmdAt[2] < 10000);
+
+        if (!uProt1 && !uProt2 && !isRetained) {
+          if (typeof parsed.autoOffSec === "number") dev.autoOffSec = parsed.autoOffSec;
+          if (typeof parsed.autoOffSec2 === "number") dev.autoOffSec2 = parsed.autoOffSec2;
+          if (typeof parsed.lock === "boolean") dev.wallSwitchLock = parsed.lock;
+          if (typeof parsed.timerRemSec === "number") {
+            dev.timerRemSec = parsed.timerRemSec;
+            dev.hwTimerEndsAt = parsed.timerRemSec > 0 ? (now + parsed.timerRemSec * 1000) : 0;
+          }
+          if (typeof parsed.timerRemSec2 === "number" || typeof parsed.timer2 === "number") {
+            const t2 = typeof parsed.timerRemSec2 === "number" ? parsed.timerRemSec2 : parsed.timer2;
+            dev.timerRemSec2 = t2;
+            dev.hwTimerEndsAt2 = t2 > 0 ? (now + t2 * 1000) : 0;
+          }
         }
 
         if (parsed.fw) dev.fw = parsed.fw;
@@ -191,12 +206,6 @@
           dev.ip = parsed.ip;
         }
         if (typeof parsed.rssi === "number") dev.lanRssi = parsed.rssi;
-        if (typeof parsed.autoOffSec === "number") dev.autoOffSec = parsed.autoOffSec;
-        if (typeof parsed.lock === "boolean") dev.wallSwitchLock = parsed.lock;
-        if (typeof parsed.timerRemSec === "number") {
-          dev.timerRemSec = parsed.timerRemSec;
-          dev.hwTimerEndsAt = parsed.timerRemSec > 0 ? (now + parsed.timerRemSec * 1000) : 0;
-        }
         dev.lastCloudSeen = now;
         if (dev.cloudOnline !== false) dev.cloudOnline = true;
         if (!this.isPending(dev, 1) && (!dev.dual || !this.isPending(dev, 2))) {
@@ -294,17 +303,30 @@
       const t0 = performance.now();
       const text = await this.lanFetch(this.lanUrl(dev, "ping"), timeoutMs || NARI.settings.lanTimeoutMs);
       const data = safeJson(text) || {};
+      const now = Date.now();
       dev.rtt = Math.round(performance.now() - t0);
       dev.lanOk = true;
-      dev.lastLanOk = Date.now();
+      dev.lastLanOk = now;
       dev.lanRssi = typeof data.rssi === "number" ? data.rssi : dev.lanRssi;
       if (data.id && !dev.id) dev.id = data.id;
       if (data.fw) dev.fw = data.fw;
-      if (typeof data.autoOffSec === "number") dev.autoOffSec = data.autoOffSec;
-      if (typeof data.lock === "number" || typeof data.lock === "boolean") dev.wallSwitchLock = data.lock === 1 || data.lock === true;
-      if (typeof data.timerRemSec === "number") {
-        dev.timerRemSec = data.timerRemSec;
-        dev.hwTimerEndsAt = data.timerRemSec > 0 ? (Date.now() + data.timerRemSec * 1000) : 0;
+
+      const uProt1 = dev.lastUserCmdAt && dev.lastUserCmdAt[1] && (now - dev.lastUserCmdAt[1] < 10000);
+      const uProt2 = dev.lastUserCmdAt && dev.lastUserCmdAt[2] && (now - dev.lastUserCmdAt[2] < 10000);
+
+      if (!uProt1 && !uProt2) {
+        if (typeof data.autoOffSec === "number") dev.autoOffSec = data.autoOffSec;
+        if (typeof data.autoOffSec2 === "number") dev.autoOffSec2 = data.autoOffSec2;
+        if (typeof data.lock === "number" || typeof data.lock === "boolean") dev.wallSwitchLock = data.lock === 1 || data.lock === true;
+        if (typeof data.timerRemSec === "number") {
+          dev.timerRemSec = data.timerRemSec;
+          dev.hwTimerEndsAt = data.timerRemSec > 0 ? (now + data.timerRemSec * 1000) : 0;
+        }
+        if (typeof data.timerRemSec2 === "number" || typeof data.timer2 === "number") {
+          const t2 = typeof data.timerRemSec2 === "number" ? data.timerRemSec2 : data.timer2;
+          dev.timerRemSec2 = t2;
+          dev.hwTimerEndsAt2 = t2 > 0 ? (now + t2 * 1000) : 0;
+        }
       }
       if (typeof data.relay1 === "number" || typeof data.relay1 === "boolean") {
         this._applyReported(dev, 1, data.relay1 === 1 || data.relay1 === true);
@@ -364,13 +386,24 @@
     },
     /** Apply a device-reported relay state. Returns false when ignored as stale. */
     _applyReported(dev, relay, v) {
-      const e = dev._expect && dev._expect[relay];
       const now = Date.now();
+      const lastCmd = dev.lastUserCmdAt && dev.lastUserCmdAt[relay];
+      const targetState = dev.userTargetState && dev.userTargetState[relay];
+
+      // Anti-bounce / reconnect protection: within 10s of a user command, reject any contradictory state
+      if (lastCmd && (now - lastCmd < 10000) && targetState !== undefined) {
+        if (v !== targetState) {
+          console.warn(`[NARI Anti-Bounce] Ignored contradictory report for ${dev.name || dev.id} relay ${relay}: got ${v}, expected ${targetState}`);
+          return false;
+        }
+      }
+
+      const e = dev._expect && dev._expect[relay];
       if (e && now < e.until) {
         if (v === e.v) {
           e.confirmed = true;
-          // Maintain a 4s anti-bounce guard window against stale retained MQTT messages / delayed echoes
-          e.until = Math.max(e.until, now + 4000);
+          // Maintain a 10s anti-bounce guard window against stale retained MQTT messages / delayed echoes
+          e.until = Math.max(e.until, now + 10000);
         } else {
           return false;
         }
@@ -397,6 +430,12 @@
       const prevR2 = dev.state2;
       const prevOnline = dev.isOnline;
       const cmdTime = Date.now();
+
+      // Track active user command timestamp and target state for 10s anti-bounce / reconnect shield
+      dev.lastUserCmdAt = dev.lastUserCmdAt || {};
+      dev.userTargetState = dev.userTargetState || {};
+      dev.lastUserCmdAt[relayNum] = cmdTime;
+      dev.userTargetState[relayNum] = targetStateBool;
 
       // Optimistic state update (+ guard against stale echoes until the device confirms)
       this._expect(dev, relayNum, targetStateBool, cmdTime);
@@ -548,30 +587,107 @@
     async setBootState(dev, mode, extra) {
       extra = extra || {};
       const autoOffSec = extra.autoOffSec !== undefined ? extra.autoOffSec : (dev.autoOffSec || 0);
+      const autoOffSec2 = extra.autoOffSec2 !== undefined ? extra.autoOffSec2 : (dev.autoOffSec2 || 0);
+      const boot2 = extra.bootState2 || dev.bootState2 || mode;
       const lock = extra.wallSwitchLock !== undefined ? (extra.wallSwitchLock ? 1 : 0) : (dev.wallSwitchLock ? 1 : 0);
       let ok = false;
       if (this.lanAllowed(dev)) {
-        try { await this.lanFetch(this.lanUrl(dev, "setBootState", { mode, autoOff: autoOffSec, autoOffSec, lock }), 800); ok = true; } catch (e) {}
+        try {
+          await this.lanFetch(this.lanUrl(dev, "setBootState", {
+            mode,
+            mode2: boot2,
+            autoOff: autoOffSec,
+            autoOff1: autoOffSec,
+            autoOff2: autoOffSec2,
+            autoOffSec,
+            lock
+          }), 800);
+          ok = true;
+        } catch (e) {}
       }
       if (this.publish(this.topic(dev, "config/boot"), mode, { qos: 1, retain: true })) ok = true;
+      this.publish(this.topic(dev, "config/boot2"), boot2, { qos: 1, retain: true });
       this.publish(this.topic(dev, "config/inching"), String(autoOffSec), { qos: 1, retain: true });
+      this.publish(this.topic(dev, "config/inching1"), String(autoOffSec), { qos: 1, retain: true });
+      this.publish(this.topic(dev, "config/inching2"), String(autoOffSec2), { qos: 1, retain: true });
       this.publish(this.topic(dev, "config/lock"), String(lock), { qos: 1, retain: true });
       return ok;
     },
 
-    async setHardwareTimer(dev, seconds, targetStateBool) {
+    async setHardwareTimer(dev, seconds, targetStateBool, relayNum) {
       if (!dev) return false;
+      const rn = relayNum || 1;
       const sec = Math.max(0, Math.round(Number(seconds) || 0));
       const st = targetStateBool ? 1 : 0;
-      dev.timerRemSec = sec;
-      dev.hwTimerEndsAt = sec > 0 ? (Date.now() + sec * 1000) : 0;
+      if (rn === 2) {
+        dev.timerRemSec2 = sec;
+        dev.hwTimerEndsAt2 = sec > 0 ? (Date.now() + sec * 1000) : 0;
+        if (sec === 0) dev.autoOffSec2 = 0;
+      } else {
+        dev.timerRemSec = sec;
+        dev.hwTimerEndsAt = sec > 0 ? (Date.now() + sec * 1000) : 0;
+        if (sec === 0) dev.autoOffSec = 0;
+      }
       let ok = false;
       if (this.lanAllowed(dev)) {
-        try { await this.lanFetch(this.lanUrl(dev, "timer", { sec, state: st }), 800); ok = true; } catch (e) {}
+        try { await this.lanFetch(this.lanUrl(dev, "timer", { ch: rn, sec, state: st }), 800); ok = true; } catch (e) {}
+        if (sec === 0) {
+          try { await this.lanFetch(this.lanUrl(dev, "setBootState", { [rn === 2 ? 'autoOff2' : 'autoOff1']: 0 }), 800); } catch (e) {}
+        }
       }
       const payload = sec > 0 ? `${sec}:${st}` : "0";
-      if (this.publish(this.topic(dev, "timer"), payload, { qos: 1 })) ok = true;
+      const id = store.identifierOf(dev);
+      const topicSuffix = rn === 2 ? "timer2" : "timer";
+      if (this.publish(this.topic(dev, topicSuffix), payload, { qos: 1, retain: sec === 0 })) ok = true;
+      if (id) {
+        this.publish(`device/${id}/${topicSuffix}`, payload, { qos: 1, retain: sec === 0 });
+        if (sec === 0) {
+          this.publish(`device/${id}/cmd`, `timer${rn}:0`, { qos: 1 });
+          this.publish(`nari/${id}/config/inching${rn}`, "0", { qos: 1, retain: true });
+          this.publish(`device/${id}/cmd`, `INCHING${rn}:0`, { qos: 1 });
+        }
+      }
       return ok;
+    },
+
+    async cancelDeviceTimers(dev, relayNum) {
+      if (!dev) return false;
+      const rn = relayNum || 1;
+      const id = store.identifierOf(dev);
+
+      if (rn === 2) {
+        dev.timerRemSec2 = 0;
+        dev.hwTimerEndsAt2 = 0;
+        dev.autoOffSec2 = 0;
+      } else {
+        dev.timerRemSec = 0;
+        dev.hwTimerEndsAt = 0;
+        dev.autoOffSec = 0;
+      }
+
+      // 1. MQTT disarm across standard and legacy topics
+      if (id) {
+        const top = rn === 2 ? "timer2" : "timer";
+        this.publish(`device/${id}/${top}`, "0", { qos: 1, retain: true });
+        this.publish(this.topic(dev, top), "0", { qos: 1, retain: true });
+        this.publish(`device/${id}/cmd`, `timer${rn}:0`, { qos: 1 });
+        this.publish(`device/${id}/cmd`, `TIMER${rn}:0`, { qos: 1 });
+        this.publish(`nari/${id}/config/inching${rn}`, "0", { qos: 1, retain: true });
+        this.publish(`device/${id}/cmd`, `INCHING${rn}:0`, { qos: 1 });
+        if (rn === 1) {
+          this.publish(`device/${id}/timer`, "0", { qos: 1, retain: true });
+          this.publish(this.topic(dev, "timer"), "0", { qos: 1, retain: true });
+          this.publish(`nari/${id}/config/inching`, "0", { qos: 1, retain: true });
+          this.publish(`device/${id}/cmd`, "INCHING:0", { qos: 1 });
+        }
+      }
+
+      // 2. LAN REST disarm (fire-and-forget sub-800ms)
+      if (this.lanAllowed(dev)) {
+        try { this.lanFetch(this.lanUrl(dev, "timer", { ch: rn, sec: 0, state: 0 }), 800).catch(() => {}); } catch (e) {}
+        try { this.lanFetch(this.lanUrl(dev, "setBootState", { [rn === 2 ? 'autoOff2' : 'autoOff1']: 0 }), 800).catch(() => {}); } catch (e) {}
+      }
+      return true;
     },
  
     async triggerOta(dev, binUrl) {
@@ -618,7 +734,11 @@
       try {
         const devs = store.devices;
         await Promise.all(devs.map(async (dev, i) => {
-          if (dev._isVerifying) return;
+          const hasRecentCmd = dev.lastUserCmdAt && (
+            (Date.now() - (dev.lastUserCmdAt[1] || 0) < 10000) ||
+            (Date.now() - (dev.lastUserCmdAt[2] || 0) < 10000)
+          );
+          if (dev._isVerifying || hasRecentCmd) return;
           const key = store.identifierOf(dev);
           const before = `${dev.isOnline}|${dev.link}|${dev.lanRssi}|${dev.state}|${dev.state2}`;
           if (this.lanAllowed(dev)) {

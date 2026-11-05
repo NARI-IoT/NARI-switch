@@ -38,7 +38,7 @@
       this.lastFire[key] = now;
  
       const cfg = (dev.triggers && dev.triggers[type]) || {};
-      const targetRelay = dev.dual ? (cfg.targetRelay || "both") : "relay1";
+      const targetRelay = (detail && detail.targetRelay) || (dev.dual ? (cfg.targetRelay || "both") : "relay1");
 
       let target;
       if (action === "on") target = true;
@@ -202,7 +202,8 @@
       const heard = alts.map(normalizeText);
       bus.emit("voice:heard", { text: alts[0] });
       this.devicesWith("voice").forEach(i => {
-        const cfg = store.devices[i].triggers.voice;
+        const dev = store.devices[i];
+        const cfg = dev.triggers.voice;
         const onPhrases = [cfg.on, BUILTIN_VOICE_ON].filter(Boolean).join(", ");
         const offPhrases = [cfg.off, BUILTIN_VOICE_OFF].filter(Boolean).join(", ");
         const onScore = bestPhraseMatch(heard, onPhrases);
@@ -211,7 +212,19 @@
         const best = Math.max(onScore, offScore, toggleScore);
         if (best < 0.78) return;
         const action = best === onScore ? "on" : best === offScore ? "off" : "toggle";
-        this.fire(i, "voice", action, { text: alts[0], score: best });
+
+        let targetRelay = cfg.targetRelay;
+        if (dev.dual) {
+          const heardAll = heard.join(" ").toLowerCase();
+          const r1Tag = (dev.relay1Name || "light").toLowerCase();
+          const r2Tag = (dev.relay2Name || "fan").toLowerCase();
+          const mentionsR1 = heardAll.includes(r1Tag) || (/light|bulb|lamp/i.test(heardAll) && /light|bulb|lamp/i.test(r1Tag));
+          const mentionsR2 = heardAll.includes(r2Tag) || (/fan|cooler|exhaust/i.test(heardAll) && /fan|cooler|exhaust/i.test(r2Tag));
+          if (mentionsR2 && !mentionsR1) targetRelay = "relay2";
+          else if (mentionsR1 && !mentionsR2) targetRelay = "relay1";
+        }
+
+        this.fire(i, "voice", action, { text: alts[0], score: best, targetRelay });
       });
     },
  
@@ -663,9 +676,10 @@
           cfg.timer = null;
           if (!cfg.rules || !cfg.rules.length) cfg.enabled = false;
           store.save();
-          const rn = cfg.targetRelay === "relay2" ? 2 : 1;
+          const timerRelay = (cfg.timer && cfg.timer.targetRelay) || cfg.targetRelay || "both";
+          const rn = timerRelay === "relay2" ? 2 : 1;
           if (!(act === "off" && transport && typeof transport.isPending === "function" && transport.isPending(dev, rn))) {
-            this.fire(i, "schedule", act, { timer: true });
+            this.fire(i, "schedule", act, { timer: true, targetRelay: timerRelay });
           }
           bus.emit("device:updated", i);
         }
@@ -682,7 +696,7 @@
             if (S.done[key]) return;
             S.done[key] = nowMs;
             this.lastFire[`${dk}:schedule`] = 0;   // rules are exact-minute, never block each other
-            this.fire(i, "schedule", rule.action || "toggle", { rule: rule.time });
+            this.fire(i, "schedule", rule.action || "toggle", { rule: rule.time, targetRelay: rule.targetRelay || cfg.targetRelay });
           });
         }
       });

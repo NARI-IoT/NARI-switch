@@ -2483,3 +2483,86 @@ body.theme-light .ewelink-badge-adv {
     display: none;
   }
 }
+
+/* Individual Dual-Switch Settings & AI Trigger Cards */
+.switch-settings-box {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--card-border, rgba(56, 189, 248, 0.2));
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+.switch-settings-box:hover {
+  border-color: rgba(56, 189, 248, 0.38);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+}
+.switch-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.switch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--accent, #38bdf8);
+}
+.trigger-appliance-target-bar {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.target-bar-label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.target-pills-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+@media (max-width: 480px) {
+  .target-pills-row {
+    grid-template-columns: 1fr;
+  }
+}
+.target-pill-btn {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+.target-pill-btn:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+.target-pill-btn.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(167, 139, 250, 0.25));
+  border-color: var(--accent, #38bdf8);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+}

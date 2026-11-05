@@ -15,6 +15,13 @@
   const NARI = global.NARI || {};
   const { store, bus, transport } = NARI;
 
+  function escHtml(v) {
+    return String(v === null || v === undefined ? "" : v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function escJs(v) {
+    return String(v === null || v === undefined ? "" : v).replace(/['"\\]/g, "\\$&");
+  }
+
   const STORAGE_KEY_SCENES = "nari_smart_scenes";
 
   // Pre-configured commercial preset scenes + eWeLink example
@@ -298,15 +305,26 @@
 
           if (devIdx >= 0) {
             const dev = devices[devIdx];
-            let targetState = act.state;
-            if (targetState === "toggle") targetState = !dev.state;
+            const targetRelay = act.relay || (dev.dual ? 'both' : 1);
 
-            if (dev.state !== targetState) {
-              adjustedCount++;
-              promises.push(transport.setState(devIdx, targetState, { relay: 1, quiet: true, source: "scene:" + scene.id }));
+            // Execute Relay 1 if targeted
+            if (targetRelay === 1 || targetRelay === 'relay1' || targetRelay === 'both') {
+              let targetState = act.state;
+              if (targetState === "toggle") targetState = !dev.state;
+              if (dev.state !== targetState) {
+                adjustedCount++;
+                promises.push(transport.setState(devIdx, targetState, { relay: 1, quiet: true, source: "scene:" + scene.id }));
+              }
             }
-            if (dev.dual && act.relay !== 1 && dev.state2 !== targetState) {
-              promises.push(transport.setState(devIdx, targetState, { relay: 2, quiet: true, source: "scene:" + scene.id }));
+
+            // Execute Relay 2 if targeted and device is dual
+            if (dev.dual && (targetRelay === 2 || targetRelay === 'relay2' || targetRelay === 'both')) {
+              let targetState = act.state;
+              if (targetState === "toggle") targetState = !dev.state2;
+              if (dev.state2 !== targetState) {
+                adjustedCount++;
+                promises.push(transport.setState(devIdx, targetState, { relay: 2, quiet: true, source: "scene:" + scene.id }));
+              }
             }
           }
         }
@@ -720,24 +738,75 @@
             <div class="small muted" style="padding:10px;">No smart switches added yet</div>
           ` : devices.map((d, i) => {
             const key = d.id || d.ip || d.name;
+            if (d.dual) {
+              const r1Lbl = d.relay1Name || 'Switch 1';
+              const r2Lbl = d.relay2Name || 'Switch 2';
+              return `
+                <!-- Dual Switch: Relay 1 -->
+                <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${escJs(d.name)} &bull; 💡 ${escJs(r1Lbl)}', 'on', 1)">
+                  <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #06b6d4, #0284c7);">
+                    <i class="fa-solid fa-lightbulb"></i>
+                  </div>
+                  <div style="flex:1;">
+                    <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name)} &bull; 💡 ${escHtml(r1Lbl)} Turned ON</b>
+                    <span class="small muted">Triggers when Relay 1 (${escHtml(r1Lbl)}) turns ON</span>
+                  </div>
+                  <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
+                </div>
+
+                <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${escJs(d.name)} &bull; 💡 ${escJs(r1Lbl)}', 'off', 1)">
+                  <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #ef4444, #b91c1c);">
+                    <i class="fa-solid fa-power-off"></i>
+                  </div>
+                  <div style="flex:1;">
+                    <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name)} &bull; 💡 ${escHtml(r1Lbl)} Turned OFF</b>
+                    <span class="small muted">Triggers when Relay 1 (${escHtml(r1Lbl)}) turns OFF</span>
+                  </div>
+                  <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
+                </div>
+
+                <!-- Dual Switch: Relay 2 -->
+                <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${escJs(d.name)} &bull; 🌀 ${escJs(r2Lbl)}', 'on', 2)">
+                  <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #06b6d4, #0284c7);">
+                    <i class="fa-solid fa-fan"></i>
+                  </div>
+                  <div style="flex:1;">
+                    <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name)} &bull; 🌀 ${escHtml(r2Lbl)} Turned ON</b>
+                    <span class="small muted">Triggers when Relay 2 (${escHtml(r2Lbl)}) turns ON</span>
+                  </div>
+                  <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
+                </div>
+
+                <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${escJs(d.name)} &bull; 🌀 ${escJs(r2Lbl)}', 'off', 2)">
+                  <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #ef4444, #b91c1c);">
+                    <i class="fa-solid fa-power-off"></i>
+                  </div>
+                  <div style="flex:1;">
+                    <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name)} &bull; 🌀 ${escHtml(r2Lbl)} Turned OFF</b>
+                    <span class="small muted">Triggers when Relay 2 (${escHtml(r2Lbl)}) turns OFF</span>
+                  </div>
+                  <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
+                </div>
+              `;
+            }
             return `
-              <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${d.name || 'Switch'}', 'on')">
+              <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${escJs(d.name || 'Switch')}', 'on', 1)">
                 <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #06b6d4, #0284c7);">
                   <i class="fa-solid fa-plug"></i>
                 </div>
                 <div style="flex:1;">
-                  <b style="color:var(--text);font-size:0.92rem;display:block;">${d.name || 'Switch'} Turned ON</b>
+                  <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name || 'Switch')} Turned ON</b>
                   <span class="small muted">Triggers when this switch is turned ON</span>
                 </div>
                 <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
               </div>
 
-              <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${d.name || 'Switch'}', 'off')">
+              <div class="ewelink-pick-item" onclick="NARI.scenes._setDeviceTrigger('${key}', '${escJs(d.name || 'Switch')}', 'off', 1)">
                 <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #ef4444, #b91c1c);">
                   <i class="fa-solid fa-power-off"></i>
                 </div>
                 <div style="flex:1;">
-                  <b style="color:var(--text);font-size:0.92rem;display:block;">${d.name || 'Switch'} Turned OFF</b>
+                  <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name || 'Switch')} Turned OFF</b>
                   <span class="small muted">Triggers when this switch is turned off</span>
                 </div>
                 <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem;"></i>
@@ -802,14 +871,16 @@
       this._renderSceneEditor();
     },
 
-    _setDeviceTrigger(devKey, devName, condition) {
+    _setDeviceTrigger(devKey, devName, condition, relay) {
       if (!this._currentEdit) return;
+      const relayNum = relay === 2 ? 2 : 1;
       const condLabel = condition === "on" ? "When switch turns ON" : "When switch turns OFF";
       this._currentEdit.trigger = {
         type: "device",
         deviceId: devKey,
         deviceName: devName,
         condition,
+        relay: relayNum,
         label: devName,
         subLabel: condLabel
       };
@@ -842,14 +913,61 @@
             <div class="small muted" style="padding:14px;text-align:center;">No switches found in your home</div>
           ` : devices.map((d, i) => {
             const key = d.id || d.ip || d.name;
+            if (d.dual) {
+              const r1Lbl = d.relay1Name || 'Switch 1';
+              const r2Lbl = d.relay2Name || 'Switch 2';
+              return `
+                <!-- Dual Switch: Relay 1 Action -->
+                <div class="ewelink-pick-item" onclick="NARI.scenes._addAction('${key}', '${escJs(d.name)} &bull; 💡 ${escJs(r1Lbl)}', 1)">
+                  <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #0ea5e9, #0284c7);">
+                    <i class="fa-solid fa-lightbulb"></i>
+                  </div>
+                  <div style="flex:1;">
+                    <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name)} &bull; 💡 ${escHtml(r1Lbl)}</b>
+                    <span class="small muted">${escHtml(d.room || 'Living Room')} &bull; Relay 1 Only</span>
+                  </div>
+                  <div class="ewelink-add-action-btn" style="width:26px;height:26px;font-size:0.8rem;">
+                    <i class="fa-solid fa-plus"></i>
+                  </div>
+                </div>
+
+                <!-- Dual Switch: Relay 2 Action -->
+                <div class="ewelink-pick-item" onclick="NARI.scenes._addAction('${key}', '${escJs(d.name)} &bull; 🌀 ${escJs(r2Lbl)}', 2)">
+                  <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #0ea5e9, #0284c7);">
+                    <i class="fa-solid fa-fan"></i>
+                  </div>
+                  <div style="flex:1;">
+                    <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name)} &bull; 🌀 ${escHtml(r2Lbl)}</b>
+                    <span class="small muted">${escHtml(d.room || 'Living Room')} &bull; Relay 2 Only</span>
+                  </div>
+                  <div class="ewelink-add-action-btn" style="width:26px;height:26px;font-size:0.8rem;">
+                    <i class="fa-solid fa-plus"></i>
+                  </div>
+                </div>
+
+                <!-- Dual Switch: Both Relays Action -->
+                <div class="ewelink-pick-item" onclick="NARI.scenes._addAction('${key}', '${escJs(d.name)} &bull; ⚡ Both Switches', 'both')">
+                  <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #8b5cf6, #6d28d9);">
+                    <i class="fa-solid fa-bolt"></i>
+                  </div>
+                  <div style="flex:1;">
+                    <b style="color:var(--text);font-size:0.92rem;display:block;">${escHtml(d.name)} &bull; ⚡ Both Switches</b>
+                    <span class="small muted">${escHtml(d.room || 'Living Room')} &bull; Controls both relays simultaneously</span>
+                  </div>
+                  <div class="ewelink-add-action-btn" style="width:26px;height:26px;font-size:0.8rem;">
+                    <i class="fa-solid fa-plus"></i>
+                  </div>
+                </div>
+              `;
+            }
             return `
-              <div class="ewelink-pick-item" onclick="NARI.scenes._addAction('${key}', '${d.name || 'Switch'}')">
+              <div class="ewelink-pick-item" onclick="NARI.scenes._addAction('${key}', '${escJs(d.name || 'Switch')}', 1)">
                 <div class="ewelink-dev-icon" style="background:linear-gradient(135deg, #0ea5e9, #0284c7);">
                   <i class="fa-solid fa-plug"></i>
                 </div>
                 <div style="flex:1;">
-                  <b style="color:var(--text);font-size:0.95rem;display:block;">${d.name || 'Switch'}</b>
-                  <span class="small muted">${d.room || 'Nari home IoT'} &bull; ${d.ip || 'Online'}</span>
+                  <b style="color:var(--text);font-size:0.95rem;display:block;">${escHtml(d.name || 'Switch')}</b>
+                  <span class="small muted">${escHtml(d.room || 'Nari home IoT')} &bull; ${escHtml(d.ip || 'Online')}</span>
                 </div>
                 <div class="ewelink-add-action-btn" style="width:26px;height:26px;font-size:0.8rem;">
                   <i class="fa-solid fa-plus"></i>
@@ -863,7 +981,7 @@
       NARI.openSheet(html);
     },
 
-    _addAction(devKey, devName) {
+    _addAction(devKey, devName, relay) {
       if (!this._currentEdit) return;
       if (!Array.isArray(this._currentEdit.actions)) this._currentEdit.actions = [];
 
@@ -871,6 +989,7 @@
       this._currentEdit.actions.push({
         deviceId: devKey,
         deviceName: devName,
+        relay: relay || 1,
         state: false,
         actionLabel: "Turn OFF"
       });

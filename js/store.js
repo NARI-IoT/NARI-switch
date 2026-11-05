@@ -57,7 +57,9 @@
       relay2Icon: "fan",
       dual: true,
       bootState: "LAST",
+      bootState2: "LAST",
       autoOffSec: 0,
+      autoOffSec2: 0,
       wallSwitchLock: false,
       relay1Watts: 12,
       relay2Watts: 75,
@@ -124,9 +126,11 @@
     dev.relay2Icon = dev.relay2Icon || "fan";
     dev.iconType = dev.relay1Icon;
     dev.powerOnState = dev.bootState || "LAST";
+    dev.bootState2 = dev.bootState2 || dev.bootState || "LAST";
     dev.relay1Watts = typeof dev.relay1Watts === "number" ? dev.relay1Watts : (/fan/i.test(dev.relay1Name || "") ? 75 : /geyser|heater|motor|pump|ac/i.test(dev.relay1Name || "") ? 1500 : 12);
     dev.relay2Watts = typeof dev.relay2Watts === "number" ? dev.relay2Watts : (/fan/i.test(dev.relay2Name || "") ? 75 : /geyser|heater|motor|pump|ac/i.test(dev.relay2Name || "") ? 1500 : 12);
     dev.autoOffSec = typeof dev.autoOffSec === "number" ? dev.autoOffSec : 0;
+    dev.autoOffSec2 = typeof dev.autoOffSec2 === "number" ? dev.autoOffSec2 : 0;
     dev.wallSwitchLock = !!dev.wallSwitchLock;
     const todayKey = new Date().toISOString().slice(0, 10);
     if (dev.energyDayKey !== todayKey) {
@@ -142,6 +146,17 @@
     const defs = defaultTriggers();
     Object.keys(defs).forEach(k => { t[k] = Object.assign({}, defs[k], t[k] || {}); });
     dev.triggers = t;
+
+    // Clean up expired one-shot countdown timers and phantom schedule states
+    if (dev.triggers && dev.triggers.schedule) {
+      const sch = dev.triggers.schedule;
+      if (sch.timer && sch.timer.endsAt && Date.now() >= sch.timer.endsAt) {
+        sch.timer = null;
+      }
+      if ((!sch.rules || !sch.rules.length) && !sch.timer) {
+        sch.enabled = false;
+      }
+    }
 
     if (raw.mode && raw.mode !== "none" && !raw.triggers) {
       const map = { flicker: "effect", tilt: "tilt", "auto-proximity": "geofence", geofence: "geofence", presence: "geofence", "voice-custom": "voice", "trained-clap": "clap", shake: "shake", wrist: "flick" };
@@ -387,5 +402,6 @@
   NARI.bus = bus;
   NARI.store = store;
   NARI.newDevice = newDevice;
+  NARI.migrateDevice = migrateDevice;
   NARI.defaultTriggers = defaultTriggers;
 })(window);

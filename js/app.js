@@ -184,16 +184,44 @@
   }
 
   function formatRemainingTimer(dev) {
+    if (!dev) return "";
     const now = Date.now();
-    const swTimerEnds = dev && dev.triggers && dev.triggers.schedule && dev.triggers.schedule.timer && dev.triggers.schedule.timer.endsAt;
-    const hwTimerEnds = dev && dev.hwTimerEndsAt;
-    const endsAt = Math.max(swTimerEnds || 0, hwTimerEnds || 0);
-    if (!endsAt || endsAt <= now) return "";
-    const remSec = Math.max(1, Math.ceil((endsAt - now) / 1000));
-    const m = Math.floor(remSec / 60);
-    const s = remSec % 60;
-    const mmss = m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}:${String(s).padStart(2, "0")}`;
-    return `<span class="timer-live-pill" title="Active Countdown Timer">⏳ ${mmss}</span>`;
+    const swTimer = dev.triggers && dev.triggers.schedule && dev.triggers.schedule.timer;
+    const swEnds = (swTimer && swTimer.endsAt > now) ? swTimer.endsAt : 0;
+    const hwEnds1 = (dev.hwTimerEndsAt > now) ? dev.hwTimerEndsAt : 0;
+    const hwEnds2 = (dev.hwTimerEndsAt2 > now) ? dev.hwTimerEndsAt2 : 0;
+
+    function fmt(endsAt) {
+      const remSec = Math.max(1, Math.ceil((endsAt - now) / 1000));
+      const m = Math.floor(remSec / 60);
+      const s = remSec % 60;
+      return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}:${String(s).padStart(2, "0")}`;
+    }
+
+    const pills = [];
+    if (dev.dual) {
+      const t1 = Math.max(hwEnds1, (swEnds && (!swTimer.targetRelay || swTimer.targetRelay === 'relay1' || swTimer.targetRelay === 'both')) ? swEnds : 0);
+      const t2 = Math.max(hwEnds2, (swEnds && (swTimer.targetRelay === 'relay2' || swTimer.targetRelay === 'both')) ? swEnds : 0);
+
+      if (t1 > 0 && t2 > 0 && Math.abs(t1 - t2) < 2000) {
+        pills.push(`<span class="timer-live-pill" title="Countdown active on both switches">⏳ Both ${fmt(t1)}</span>`);
+      } else {
+        if (t1 > 0) {
+          const r1Lbl = (dev.relay1Name || 'Switch 1').split(' ')[0];
+          pills.push(`<span class="timer-live-pill" title="Countdown for ${escHtml(dev.relay1Name || 'Switch 1')}">⏳ ${escHtml(r1Lbl)}: ${fmt(t1)}</span>`);
+        }
+        if (t2 > 0) {
+          const r2Lbl = (dev.relay2Name || 'Switch 2').split(' ')[0];
+          pills.push(`<span class="timer-live-pill" title="Countdown for ${escHtml(dev.relay2Name || 'Switch 2')}">⏳ ${escHtml(r2Lbl)}: ${fmt(t2)}</span>`);
+        }
+      }
+    } else {
+      const endsAt = Math.max(swEnds, hwEnds1);
+      if (endsAt > 0) {
+        pills.push(`<span class="timer-live-pill" title="Active Countdown Timer">⏳ ${fmt(endsAt)}</span>`);
+      }
+    }
+    return pills.join(" ");
   }
 
   function renderHomePulseBar() {
@@ -374,7 +402,16 @@
       const safeName = (dev.name && !/^https?:\/\//.test(dev.name))
         ? dev.name.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))
         : 'Smart Node';
-      const activeTriggers = Object.keys(dev.triggers || {}).filter(k => dev.triggers[k].enabled);
+      const activeTriggers = Object.keys(dev.triggers || {}).filter(k => {
+        const t = dev.triggers[k];
+        if (!t || !t.enabled) return false;
+        if (k === "schedule") {
+          const hasRules = Array.isArray(t.rules) && t.rules.length > 0;
+          const hasTimer = !!(t.timer && t.timer.endsAt && Date.now() < t.timer.endsAt);
+          return hasRules || hasTimer;
+        }
+        return true;
+      });
       const roomLabel = (dev.room || 'LIVING ROOM').toUpperCase();
       const nowMs = Date.now();
       const tariff = Number(NARI.settings.tariffRate) || 7.5;
@@ -457,7 +494,8 @@
             <span class="energy-pill small muted" style="font-size:0.7rem;display:inline-flex;align-items:center;gap:4px;cursor:pointer;" onclick="event.stopPropagation(); NARI.app.openEnergyModal()" title="Software Energy &amp; Bill Tracker (est. @ ₹${tariff}/kWh)">
               <i class="fa-solid fa-plug-circle-bolt" style="color:${activeWatts > 0 ? 'var(--success)' : 'var(--text-muted)'};"></i>
               <span class="energy-text">${activeWatts}W • ₹${rsToday}</span>
-              ${dev.autoOffSec > 0 ? `<span style="color:var(--warn);margin-left:3px;" title="Hardware Inching Auto-Off">⏱${dev.autoOffSec}s</span>` : ''}
+              ${dev.autoOffSec > 0 ? `<span style="color:var(--warn);margin-left:3px;" title="Hardware Inching Auto-Off (Relay 1)">⏱${dev.autoOffSec}s</span>` : ''}
+              ${(dev.dual && dev.autoOffSec2 > 0) ? `<span style="color:var(--warn);margin-left:3px;" title="Hardware Inching Auto-Off (Relay 2)">⏱${dev.autoOffSec2}s</span>` : ''}
               ${dev.wallSwitchLock ? `<i class="fa-solid fa-lock" style="color:var(--warn);margin-left:3px;" title="Wall Switch Child Lock Active"></i>` : ''}
             </span>
             <div class="link-info">
@@ -629,12 +667,15 @@
           store.save();
           if (NARI.sensors) NARI.sensors.sync();
         }
-        if (dev.hwTimerEndsAt || dev.timerRemSec) {
-          dev.hwTimerEndsAt = 0;
-          dev.timerRemSec = 0;
-          if (transport && typeof transport.setHardwareTimer === "function") {
-            transport.setHardwareTimer(dev, 0, false);
-          }
+        dev.hwTimerEndsAt = 0;
+        dev.timerRemSec = 0;
+        dev.autoOffSec = 0;
+        store.save();
+
+        if (transport && typeof transport.cancelDeviceTimers === "function") {
+          transport.cancelDeviceTimers(dev, relayNum);
+        } else if (transport && typeof transport.setHardwareTimer === "function") {
+          transport.setHardwareTimer(dev, 0, false);
         }
       }
 
@@ -709,28 +750,117 @@
             `).join("")}
           </div>
         </div>
-        <div class="form-group" style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
-          <div>
-            <label>Relay 1 Label</label>
-            <input type="text" id="devRelay1" value="${escHtml(dev.relay1Name || 'Ceiling Light')}">
+        <!-- Switch 1 (Relay 1) Dedicated Settings Card -->
+        <div class="switch-settings-box">
+          <div class="switch-box-header">
+            <span class="switch-badge"><i class="fa-solid fa-bolt" style="color:var(--accent);"></i> Switch 1 Control</span>
+            <span class="sub" style="font-size:0.75rem;color:var(--text-muted);">${escHtml(dev.relay1Name || 'Relay 1')}</span>
           </div>
-          <div>
-            <label>Wattage (W)</label>
-            <input type="number" id="devRelay1Watts" min="0" max="5000" value="${typeof dev.relay1Watts === 'number' ? dev.relay1Watts : 12}">
+
+          <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:8px;margin-bottom:8px;">
+            <div>
+              <label>Appliance Name</label>
+              <input type="text" id="devRelay1" value="${escHtml(dev.relay1Name || 'Ceiling Light')}">
+            </div>
+            <div>
+              <label>Appliance Icon</label>
+              <select id="devRelay1Icon">
+                <option value="bulb" ${dev.relay1Icon === 'bulb' ? 'selected' : ''}>💡 Bulb / Light</option>
+                <option value="fan" ${dev.relay1Icon === 'fan' ? 'selected' : ''}>🌀 Fan / Exhaust</option>
+                <option value="ac" ${dev.relay1Icon === 'ac' ? 'selected' : ''}>❄️ AC / Cooler</option>
+                <option value="lamp" ${dev.relay1Icon === 'lamp' ? 'selected' : ''}>⚡ Lamp / Bedside</option>
+                <option value="socket" ${dev.relay1Icon === 'socket' ? 'selected' : ''}>🔌 Socket / Plug</option>
+                <option value="geyser" ${dev.relay1Icon === 'geyser' ? 'selected' : ''}>♨️ Geyser / Heater</option>
+                <option value="motor" ${dev.relay1Icon === 'motor' ? 'selected' : ''}>🌊 Motor / Pump</option>
+                <option value="tv" ${dev.relay1Icon === 'tv' ? 'selected' : ''}>📺 TV / Screen</option>
+              </select>
+            </div>
           </div>
-        </div>
-        <div class="form-group" style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
-          <div>
-            <label>Relay 2 Label (Dual Switch)</label>
-            <input type="text" id="devRelay2" value="${escHtml(dev.relay2Name || 'Ceiling Fan')}">
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+            <div>
+              <label>Wattage (W)</label>
+              <input type="number" id="devRelay1Watts" min="0" max="5000" value="${typeof dev.relay1Watts === 'number' ? dev.relay1Watts : 12}">
+            </div>
+            <div>
+              <label>Boot State (On Power)</label>
+              <select id="devBootState1">
+                <option value="LAST" ${(dev.bootState || 'LAST') === 'LAST' ? 'selected' : ''}>Resume Last State</option>
+                <option value="OFF" ${dev.bootState === 'OFF' ? 'selected' : ''}>Always Start OFF</option>
+                <option value="ON" ${dev.bootState === 'ON' ? 'selected' : ''}>Always Start ON</option>
+              </select>
+            </div>
           </div>
+
           <div>
-            <label>Wattage (W)</label>
-            <input type="number" id="devRelay2Watts" min="0" max="5000" value="${typeof dev.relay2Watts === 'number' ? dev.relay2Watts : 75}">
+            <label title="Hardware Inching: Automatically turns OFF Switch 1 after N seconds even on Wi-Fi loss">Switch 1 Auto-Off Inching (sec)</label>
+            <input type="number" id="devAutoOffSec1" min="0" max="43200" value="${dev.autoOffSec || 0}" placeholder="0 = disabled (e.g. 900 = 15m)">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">
+              ${[{l:'Off',v:0},{l:'5m',v:300},{l:'15m',v:900},{l:'30m',v:1800},{l:'1h',v:3600}].map(p => `
+                <span class="suggestion-chip" onclick="document.getElementById('devAutoOffSec1').value=${p.v}">${p.l}</span>
+              `).join('')}
+            </div>
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:14px;background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;border:1px solid var(--card-border);">
+        <!-- Switch 2 (Relay 2) Dedicated Settings Card (when dual switch) -->
+        ${dev.dual ? `
+        <div class="switch-settings-box" style="margin-top:12px;border-color:rgba(167,139,250,0.35);">
+          <div class="switch-box-header">
+            <span class="switch-badge" style="background:rgba(167,139,250,0.15);color:#c084fc;">
+              <i class="fa-solid fa-code-branch"></i> Switch 2 Control
+            </span>
+            <span class="sub" style="font-size:0.75rem;color:var(--text-muted);">${escHtml(dev.relay2Name || 'Relay 2')}</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:8px;margin-bottom:8px;">
+            <div>
+              <label>Appliance Name</label>
+              <input type="text" id="devRelay2" value="${escHtml(dev.relay2Name || 'Ceiling Fan')}">
+            </div>
+            <div>
+              <label>Appliance Icon</label>
+              <select id="devRelay2Icon">
+                <option value="fan" ${dev.relay2Icon === 'fan' ? 'selected' : ''}>🌀 Fan / Exhaust</option>
+                <option value="bulb" ${dev.relay2Icon === 'bulb' ? 'selected' : ''}>💡 Bulb / Light</option>
+                <option value="ac" ${dev.relay2Icon === 'ac' ? 'selected' : ''}>❄️ AC / Cooler</option>
+                <option value="lamp" ${dev.relay2Icon === 'lamp' ? 'selected' : ''}>⚡ Lamp / Bedside</option>
+                <option value="socket" ${dev.relay2Icon === 'socket' ? 'selected' : ''}>🔌 Socket / Plug</option>
+                <option value="geyser" ${dev.relay2Icon === 'geyser' ? 'selected' : ''}>♨️ Geyser / Heater</option>
+                <option value="motor" ${dev.relay2Icon === 'motor' ? 'selected' : ''}>🌊 Motor / Pump</option>
+                <option value="tv" ${dev.relay2Icon === 'tv' ? 'selected' : ''}>📺 TV / Screen</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+            <div>
+              <label>Wattage (W)</label>
+              <input type="number" id="devRelay2Watts" min="0" max="5000" value="${typeof dev.relay2Watts === 'number' ? dev.relay2Watts : 75}">
+            </div>
+            <div>
+              <label>Boot State (On Power)</label>
+              <select id="devBootState2">
+                <option value="LAST" ${(dev.bootState2 || dev.bootState || 'LAST') === 'LAST' ? 'selected' : ''}>Resume Last State</option>
+                <option value="OFF" ${(dev.bootState2 || dev.bootState) === 'OFF' ? 'selected' : ''}>Always Start OFF</option>
+                <option value="ON" ${(dev.bootState2 || dev.bootState) === 'ON' ? 'selected' : ''}>Always Start ON</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label title="Hardware Inching: Automatically turns OFF Switch 2 after N seconds even on Wi-Fi loss">Switch 2 Auto-Off Inching (sec)</label>
+            <input type="number" id="devAutoOffSec2" min="0" max="43200" value="${dev.autoOffSec2 || 0}" placeholder="0 = disabled (e.g. 900 = 15m)">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">
+              ${[{l:'Off',v:0},{l:'5m',v:300},{l:'15m',v:900},{l:'30m',v:1800},{l:'1h',v:3600}].map(p => `
+                <span class="suggestion-chip" onclick="document.getElementById('devAutoOffSec2').value=${p.v}">${p.l}</span>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+        ` : ''}
+
+        <div class="form-group" style="margin-top:14px;margin-bottom:14px;background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;border:1px solid var(--card-border);">
           <label style="font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <i class="fa-solid fa-shield-halved" style="color:var(--success);"></i> Family Supervision Role
           </label>
@@ -753,22 +883,11 @@
               </option>
             `).join("")}
           </select>
-        </div>
 
-        <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div>
-            <label title="Hardware Inching: Automatically turns OFF after N seconds even if Wi-Fi drops or toggled from the wall switch (ideal for geysers &amp; water motors)">Hardware Auto-Off Inching (sec)</label>
-            <input type="number" id="devAutoOffSec" min="0" max="43200" value="${dev.autoOffSec || 0}" placeholder="0 = disabled (e.g. 900 = 15m)">
-            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">
-              ${[{l:'Off',v:0},{l:'5m',v:300},{l:'15m',v:900},{l:'30m',v:1800},{l:'1h',v:3600}].map(p => `
-                <span class="suggestion-chip" onclick="document.getElementById('devAutoOffSec').value=${p.v}">${p.l}</span>
-              `).join('')}
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;justify-content:center;padding-top:10px;">
+          <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.8rem;">
               <input type="checkbox" id="devWallLock" ${dev.wallSwitchLock ? 'checked' : ''} style="accent-color:var(--primary);width:16px;height:16px;">
-              <span>🔒 Lock Physical Wall Switch (Child Lock)</span>
+              <span>🔒 Lock Physical Wall Switch (Child Lock for physical rocker inputs)</span>
             </label>
           </div>
         </div>
@@ -896,16 +1015,31 @@
       dev.name = document.getElementById("devName").value.trim() || dev.name;
       const roomInput = document.getElementById("devRoom");
       if (roomInput) dev.room = roomInput.value.trim() || "Living Room";
+
       const r1Input = document.getElementById("devRelay1");
       if (r1Input) dev.relay1Name = r1Input.value.trim() || "Switch 1";
-      const r2Input = document.getElementById("devRelay2");
-      if (r2Input) dev.relay2Name = r2Input.value.trim() || "Switch 2";
+      const r1IconEl = document.getElementById("devRelay1Icon");
+      if (r1IconEl) dev.relay1Icon = r1IconEl.value;
       const r1W = document.getElementById("devRelay1Watts");
       if (r1W) dev.relay1Watts = Math.max(0, Number(r1W.value) || 0);
-      const r2W = document.getElementById("devRelay2Watts");
-      if (r2W) dev.relay2Watts = Math.max(0, Number(r2W.value) || 0);
-      const autoOffEl = document.getElementById("devAutoOffSec");
-      if (autoOffEl) dev.autoOffSec = Math.max(0, Math.min(65000, Math.round(Number(autoOffEl.value) || 0)));
+      const autoOffEl1 = document.getElementById("devAutoOffSec1") || document.getElementById("devAutoOffSec");
+      if (autoOffEl1) dev.autoOffSec = Math.max(0, Math.min(65000, Math.round(Number(autoOffEl1.value) || 0)));
+      const boot1El = document.getElementById("devBootState1") || document.getElementById("bootState");
+      if (boot1El) dev.bootState = boot1El.value;
+
+      if (dev.dual) {
+        const r2Input = document.getElementById("devRelay2");
+        if (r2Input) dev.relay2Name = r2Input.value.trim() || "Switch 2";
+        const r2IconEl = document.getElementById("devRelay2Icon");
+        if (r2IconEl) dev.relay2Icon = r2IconEl.value;
+        const r2W = document.getElementById("devRelay2Watts");
+        if (r2W) dev.relay2Watts = Math.max(0, Number(r2W.value) || 0);
+        const autoOffEl2 = document.getElementById("devAutoOffSec2");
+        if (autoOffEl2) dev.autoOffSec2 = Math.max(0, Math.min(65000, Math.round(Number(autoOffEl2.value) || 0)));
+        const boot2El = document.getElementById("devBootState2");
+        if (boot2El) dev.bootState2 = boot2El.value;
+      }
+
       const wallLockEl = document.getElementById("devWallLock");
       if (wallLockEl) dev.wallSwitchLock = !!wallLockEl.checked;
       const ipInput = document.getElementById("devIp");
@@ -926,9 +1060,15 @@
       const editAssigned = document.getElementById("editDevAssigned");
       if (editAssigned) dev.assignedTo = editAssigned.value || null;
 
-      dev.bootState = document.getElementById("bootState").value;
-      dev.bgPhoto = document.getElementById("bgPhotoUrl").value.trim() || null;
-      transport.setBootState(dev, dev.bootState, { autoOffSec: dev.autoOffSec, wallSwitchLock: dev.wallSwitchLock });
+      const bgPhotoEl = document.getElementById("bgPhotoUrl");
+      if (bgPhotoEl) dev.bgPhoto = bgPhotoEl.value.trim() || null;
+
+      transport.setBootState(dev, dev.bootState, {
+        autoOffSec: dev.autoOffSec,
+        autoOffSec2: dev.autoOffSec2 || 0,
+        bootState2: dev.bootState2 || dev.bootState,
+        wallSwitchLock: dev.wallSwitchLock
+      });
       store.save();
       renderRoomFilters();
       renderDeviceCards();
@@ -1483,11 +1623,20 @@
       } else if (activeTabInfo.id === "schedule") {
         configHtml = `
           <div style="margin-bottom:14px;">
-            <label style="font-size:0.76rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">Quick Auto-Off Timer</label>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <label style="font-size:0.76rem;font-weight:700;color:var(--text-muted);margin:0;">Quick Auto-Off Countdown</label>
+              ${dev.dual ? `
+                <select id="quickTimerRelayTarget" style="font-size:0.72rem;padding:2px 8px;background:rgba(255,255,255,0.06);border:1px solid var(--card-border);border-radius:6px;color:var(--text);">
+                  <option value="both">Both Switches</option>
+                  <option value="relay1">${escHtml(dev.relay1Name || 'Switch 1')} Only</option>
+                  <option value="relay2">${escHtml(dev.relay2Name || 'Switch 2')} Only</option>
+                </select>
+              ` : ''}
+            </div>
             ${t.schedule.timer && t.schedule.timer.endsAt && t.schedule.timer.endsAt > Date.now() ? `
               <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:rgba(16,185,129,0.15);border:1px solid var(--accent);border-radius:10px;">
                 <div>
-                  <span style="font-weight:700;color:var(--success);"><i class="fa-solid fa-hourglass-half"></i> Active Timer</span>
+                  <span style="font-weight:700;color:var(--success);"><i class="fa-solid fa-hourglass-half"></i> Active Countdown (${t.schedule.timer.targetRelay === 'relay2' ? (dev.relay2Name || 'Switch 2') : t.schedule.timer.targetRelay === 'relay1' ? (dev.relay1Name || 'Switch 1') : 'Both Switches'})</span>
                   <div class="small muted">Auto-${(t.schedule.timer.action || 'off').toUpperCase()} in ${Math.max(1, Math.round((t.schedule.timer.endsAt - Date.now()) / 60000))} min</div>
                 </div>
                 <button class="btn danger sm" onclick="NARI.app.cancelQuickTimer(${index})">Cancel</button>
@@ -1512,6 +1661,7 @@
                       <b>${r.time === 'sunrise' ? '🌅 Sunrise' : r.time === 'sunset' ? '🌇 Sunset' : r.time}</b>
                       ${r.offsetMin ? (r.offsetMin > 0 ? ` +${r.offsetMin}m` : ` ${r.offsetMin}m`) : ''}
                       &rarr; <span style="color:var(--accent);font-weight:700;">${(r.action || 'toggle').toUpperCase()}</span>
+                      ${dev.dual ? `<span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:rgba(56,189,248,0.15);color:var(--accent);margin-left:6px;font-weight:700;">${r.targetRelay === 'relay2' ? (dev.relay2Name || 'Switch 2') : r.targetRelay === 'relay1' ? (dev.relay1Name || 'Switch 1') : 'Both'}</span>` : ''}
                       <div class="small muted">${formatDays(r.days)}</div>
                     </div>
                     <button class="btn danger sm" style="padding:4px 8px;" onclick="NARI.app.deleteScheduleRule(${index}, ${ri})" title="Delete rule">
@@ -1525,6 +1675,16 @@
             <details style="margin-top:6px;">
               <summary><i class="fa-solid fa-plus"></i> Add New Daily Schedule</summary>
               <div style="margin-top:10px;">
+                ${dev.dual ? `
+                <div class="form-group">
+                  <label>Target Switch</label>
+                  <select id="schedTargetRelay">
+                    <option value="both">Both Switches (${escHtml(dev.relay1Name || 'Switch 1')} &amp; ${escHtml(dev.relay2Name || 'Switch 2')})</option>
+                    <option value="relay1">${escHtml(dev.relay1Name || 'Switch 1')} (Relay 1 Only)</option>
+                    <option value="relay2">${escHtml(dev.relay2Name || 'Switch 2')} (Relay 2 Only)</option>
+                  </select>
+                </div>
+                ` : ''}
                 <div class="form-group">
                   <label>Trigger Time</label>
                   <select id="schedTimeType" onchange="NARI.app.toggleSchedTimeInput()">
@@ -1715,13 +1875,25 @@
             </button>
           </div>
           ${dev.dual ? `
-            <div class="form-group" style="background:rgba(255,255,255,0.03);padding:10px 12px;border-radius:10px;border:1px solid var(--card-border);margin-bottom:12px;">
-              <label style="margin:0 0 6px;font-weight:700;"><i class="fa-solid fa-code-fork" style="color:var(--accent);"></i> Target Appliance</label>
-              <select onchange="NARI.app.setTriggerTargetRelay(${index}, '${activeTabInfo.id}', this.value)">
-                <option value="both" ${(t[activeTabInfo.id] && (t[activeTabInfo.id].targetRelay === 'both' || !t[activeTabInfo.id].targetRelay)) ? 'selected' : ''}>Both (${escHtml(dev.relay1Name || 'Relay 1')} &amp; ${escHtml(dev.relay2Name || 'Relay 2')})</option>
-                <option value="relay1" ${(t[activeTabInfo.id] && t[activeTabInfo.id].targetRelay === 'relay1') ? 'selected' : ''}>${escHtml(dev.relay1Name || 'Relay 1')} Only</option>
-                <option value="relay2" ${(t[activeTabInfo.id] && t[activeTabInfo.id].targetRelay === 'relay2') ? 'selected' : ''}>${escHtml(dev.relay2Name || 'Relay 2')} Only</option>
-              </select>
+            <div class="trigger-appliance-target-bar">
+              <div class="target-bar-label">
+                <i class="fa-solid fa-code-branch" style="color:var(--accent);"></i>
+                <b>Target Switch:</b> Choose which switch this <b>${escHtml(activeTabInfo.label)}</b> mode controls
+              </div>
+              <div class="target-pills-row">
+                <button type="button" class="target-pill-btn ${(t[activeTabInfo.id] && t[activeTabInfo.id].targetRelay === 'relay1') ? 'active' : ''}"
+                        onclick="NARI.app.setTriggerTargetRelay(${index}, '${activeTabInfo.id}', 'relay1')">
+                  💡 ${escHtml(dev.relay1Name || 'Switch 1')} (Relay 1 Only)
+                </button>
+                <button type="button" class="target-pill-btn ${(t[activeTabInfo.id] && t[activeTabInfo.id].targetRelay === 'relay2') ? 'active' : ''}"
+                        onclick="NARI.app.setTriggerTargetRelay(${index}, '${activeTabInfo.id}', 'relay2')">
+                  🌀 ${escHtml(dev.relay2Name || 'Switch 2')} (Relay 2 Only)
+                </button>
+                <button type="button" class="target-pill-btn ${(!t[activeTabInfo.id] || t[activeTabInfo.id].targetRelay === 'both' || !t[activeTabInfo.id].targetRelay) ? 'active' : ''}"
+                        onclick="NARI.app.setTriggerTargetRelay(${index}, '${activeTabInfo.id}', 'both')">
+                  ⚡ Both Switches
+                </button>
+              </div>
             </div>
           ` : ''}
           ${configHtml}
@@ -1735,8 +1907,9 @@
       dev.triggers[type].targetRelay = val;
       store.save();
       sensors.sync();
-      const lbl = val === 'both' ? 'Both Appliances' : val === 'relay2' ? (dev.relay2Name || 'Relay 2') : (dev.relay1Name || 'Relay 1');
+      const lbl = val === 'both' ? 'Both Switches' : val === 'relay2' ? (dev.relay2Name || 'Switch 2') : (dev.relay1Name || 'Switch 1');
       showToast(`Automation applied to: ${lbl}`, "ok");
+      this.openTriggerModal(index, type);
     },
 
     selectTriggerTab(index, type) {
@@ -1945,27 +2118,42 @@
       this.setGeofenceExitAction(index, act);
     },
 
-    setQuickTimer(index, minutes, action) {
+    setQuickTimer(index, minutes, action, explicitRelay) {
       const endsAt = Date.now() + minutes * 60000;
       const dev = store.devices[index];
-      dev.triggers.schedule.timer = { endsAt, action };
+      const targetRelay = explicitRelay || document.getElementById("quickTimerRelayTarget")?.value || (dev.triggers.schedule.targetRelay || "both");
+      dev.triggers.schedule.timer = { endsAt, action, targetRelay };
       dev.triggers.schedule.enabled = true;
       store.save();
       sensors.sync();
+      const rn = targetRelay === "relay2" ? 2 : 1;
       if (transport && typeof transport.setHardwareTimer === "function") {
-        transport.setHardwareTimer(dev, minutes * 60, action === "on");
+        transport.setHardwareTimer(dev, minutes * 60, action === "on", rn);
+        if (targetRelay === "both" && dev.dual) {
+          transport.setHardwareTimer(dev, minutes * 60, action === "on", 2);
+        }
       }
       this.openTriggerModal(index, 'schedule');
       renderDeviceCards();
-      showToast(`⏱️ Auto-${action.toUpperCase()} timer set for ${minutes} min (Hardware + App)`, "ok");
+      const targetLbl = targetRelay === 'relay2' ? (dev.relay2Name || 'Switch 2') : targetRelay === 'relay1' ? (dev.relay1Name || 'Switch 1') : 'Both Switches';
+      showToast(`⏱️ Auto-${action.toUpperCase()} timer set for ${minutes} min on ${targetLbl}`, "ok");
     },
 
     cancelQuickTimer(index) {
       const dev = store.devices[index];
       dev.triggers.schedule.timer = null;
+      if (!dev.triggers.schedule.rules || !dev.triggers.schedule.rules.length) {
+        dev.triggers.schedule.enabled = false;
+      }
+      dev.hwTimerEndsAt = 0;
+      dev.timerRemSec = 0;
+      dev.autoOffSec = 0;
       store.save();
       sensors.sync();
-      if (transport && typeof transport.setHardwareTimer === "function") {
+      if (transport && typeof transport.cancelDeviceTimers === "function") {
+        transport.cancelDeviceTimers(dev, 1);
+        if (dev.dual) transport.cancelDeviceTimers(dev, 2);
+      } else if (transport && typeof transport.setHardwareTimer === "function") {
         transport.setHardwareTimer(dev, 0, false);
       }
       this.openTriggerModal(index, 'schedule');
@@ -2006,9 +2194,10 @@
         offsetVal = parseInt(document.getElementById("schedOffset")?.value, 10) || 0;
       }
       const actionVal = document.getElementById("schedAction")?.value || "toggle";
+      const targetRelay = document.getElementById("schedTargetRelay")?.value || (store.devices[index].triggers.schedule.targetRelay || "both");
       const dayBtns = document.querySelectorAll("#schedDaysPicker button.on");
       const days = Array.from(dayBtns).map(b => parseInt(b.getAttribute("data-day"), 10));
-      const rule = { time: timeVal, action: actionVal, days, enabled: true };
+      const rule = { time: timeVal, action: actionVal, days, enabled: true, targetRelay };
       if (offsetVal) rule.offsetMin = offsetVal;
 
       if (!store.devices[index].triggers.schedule.rules) {
@@ -2628,12 +2817,34 @@
       const r1Ms = (dev.runtimeMs1 || 0) + (isR1On && dev.lastOnAt1 ? Math.max(0, nowMs - dev.lastOnAt1) : 0);
       const r2Ms = (dev.runtimeMs2 || 0) + (isR2On && dev.lastOnAt2 ? Math.max(0, nowMs - dev.lastOnAt2) : 0);
       const curW = (isR1On ? w1 : 0) + (dev.dual && isR2On ? w2 : 0);
-      const kwh = ((w1 * (r1Ms / 3600000)) + (dev.dual ? (w2 * (r2Ms / 3600000)) : 0)) / 1000;
+      const kwh1 = (w1 * (r1Ms / 3600000)) / 1000;
+      const kwh2 = (w2 * (r2Ms / 3600000)) / 1000;
+      const kwh = kwh1 + (dev.dual ? kwh2 : 0);
       const cost = kwh * tariff;
-      const mins = Math.round((r1Ms + (dev.dual ? r2Ms : 0)) / 60000);
+      const mins1 = Math.round(r1Ms / 60000);
+      const mins2 = Math.round(r2Ms / 60000);
+      const mins = mins1 + (dev.dual ? mins2 : 0);
       totalW += curW;
       totalKwh += kwh;
-      return { name: dev.name, room: dev.room || "Living Room", curW, kwh, cost, mins };
+      return {
+        name: dev.name,
+        room: dev.room || "Living Room",
+        curW,
+        kwh,
+        cost,
+        mins,
+        isDual: !!dev.dual,
+        r1Name: dev.relay1Name || "Switch 1",
+        r2Name: dev.relay2Name || "Switch 2",
+        r1W: isR1On ? w1 : 0,
+        r2W: isR2On ? w2 : 0,
+        r1Kwh: kwh1,
+        r2Kwh: kwh2,
+        r1Cost: kwh1 * tariff,
+        r2Cost: kwh2 * tariff,
+        r1Mins: mins1,
+        r2Mins: mins2
+      };
     });
     const totalCost = totalKwh * tariff;
 
@@ -2672,6 +2883,24 @@
               <div style="height:5px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;">
                 <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--primary),var(--accent));"></div>
               </div>
+              ${r.isDual ? `
+                <div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.08);display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.72rem;">
+                  <div style="background:rgba(255,255,255,0.02);padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);">
+                    <div style="color:var(--text);font-weight:600;display:flex;justify-content:space-between;">
+                      <span>💡 ${escHtml(r.r1Name)}</span>
+                      <span style="color:var(--accent);">₹${r.r1Cost.toFixed(2)}</span>
+                    </div>
+                    <div class="muted" style="font-size:0.68rem;margin-top:2px;">${r.r1W}W &bull; ${r.r1Mins}m &bull; ${r.r1Kwh.toFixed(3)} kWh</div>
+                  </div>
+                  <div style="background:rgba(255,255,255,0.02);padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);">
+                    <div style="color:var(--text);font-weight:600;display:flex;justify-content:space-between;">
+                      <span>🌀 ${escHtml(r.r2Name)}</span>
+                      <span style="color:var(--accent);">₹${r.r2Cost.toFixed(2)}</span>
+                    </div>
+                    <div class="muted" style="font-size:0.68rem;margin-top:2px;">${r.r2W}W &bull; ${r.r2Mins}m &bull; ${r.r2Kwh.toFixed(3)} kWh</div>
+                  </div>
+                </div>
+              ` : ''}
             </div>
           `;
         }).join("")}
