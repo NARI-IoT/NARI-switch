@@ -42,7 +42,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-  <link rel="stylesheet" href="css/app.css?v=2.4.0">
+  <link rel="stylesheet" href="css/app.css?v=2.5.0">
 
   <!-- MQTT client for WebSockets -->
   <script src="vendor/js/mqtt.min.js"></script>
@@ -215,13 +215,13 @@
 
   <!-- App Architecture Scripts -->
   <!-- Terms & Conditions gate: loads the app scripts (config ... sharing) ONLY after the user accepts. -->
-  <script src="js/legal-content.js?v=2.4.0"></script>
-  <script src="js/legal.js?v=2.4.0"></script>
+  <script src="js/legal-content.js?v=2.5.0"></script>
+  <script src="js/legal.js?v=2.5.0"></script>
   <script>
     // Offline support with instant auto-update
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("sw.js?v=2.4.0").then((reg) => {
+        navigator.serviceWorker.register("sw.js?v=2.5.0").then((reg) => {
           reg.update();
           reg.addEventListener("updatefound", () => {
             const newWorker = reg.installing;

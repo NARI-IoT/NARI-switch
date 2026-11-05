@@ -2011,9 +2011,10 @@ void loop() {
   }
 
   // Standalone BLE Presence Switching with Debounce
+  // Only trigger if a valid BLE beacon is actively tracked (prevents unwanted auto-off when manual toggle is used)
   bool hasClusterPeers = (nowMs - lastClusterSeenTime < 5000);
-  if (!hasClusterPeers) {
-    if (isBeaconFresh && currentFilteredRssi >= config.userThresholdRssi) {
+  if (!hasClusterPeers && isBeaconFresh) {
+    if (currentFilteredRssi >= config.userThresholdRssi) {
       if (!relay1State) {
         if (winStartTime == 0) {
           winStartTime = nowMs;
@@ -2025,7 +2026,7 @@ void loop() {
           lossStartTime = 0;
         }
       }
-    } else if (!isBeaconFresh || currentFilteredRssi < (config.userThresholdRssi - HYSTERESIS_DELTA_DBM)) {
+    } else if (currentFilteredRssi < (config.userThresholdRssi - HYSTERESIS_DELTA_DBM)) {
       if (relay1State) {
         if (lossStartTime == 0) {
           lossStartTime = nowMs;
@@ -2041,6 +2042,9 @@ void loop() {
       winStartTime = 0;
       lossStartTime = 0;
     }
+  } else {
+    winStartTime = 0;
+    lossStartTime = 0;
   }
 
   delay(10);

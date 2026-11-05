@@ -750,8 +750,22 @@
             `).join("")}
           </div>
         </div>
-        <!-- Switch 1 (Relay 1) Dedicated Settings Card -->
-        <div class="switch-settings-box">
+        <!-- Interactive Switch Selector Tabs (Relay 1 vs Relay 2) -->
+        <div class="settings-switch-tabs-row" style="display:flex;gap:8px;margin-bottom:14px;">
+          <button type="button" class="settings-switch-tab active" id="tabSwitch1" onclick="NARI.app.switchSettingsTab(1)"
+                  style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--accent,#38bdf8);background:rgba(56,189,248,0.15);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:0.85rem;">
+            <i class="fa-solid fa-lightbulb" style="color:var(--accent,#38bdf8);"></i>
+            <span>Switch 1 (${escHtml(dev.relay1Name || 'Ceiling Light')})</span>
+          </button>
+          <button type="button" class="settings-switch-tab" id="tabSwitch2" onclick="NARI.app.switchSettingsTab(2)"
+                  style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:0.85rem;">
+            <i class="fa-solid fa-fan" style="color:#c084fc;"></i>
+            <span>Switch 2 (${escHtml(dev.relay2Name || 'Ceiling Fan')})</span>
+          </button>
+        </div>
+
+        <!-- Switch 1 (Relay 1) Dedicated Settings Panel -->
+        <div id="settingsPanelRelay1" class="switch-settings-box">
           <div class="switch-box-header">
             <span class="switch-badge"><i class="fa-solid fa-bolt" style="color:var(--accent);"></i> Switch 1 Control</span>
             <span class="sub" style="font-size:0.75rem;color:var(--text-muted);">${escHtml(dev.relay1Name || 'Relay 1')}</span>
@@ -803,9 +817,8 @@
           </div>
         </div>
 
-        <!-- Switch 2 (Relay 2) Dedicated Settings Card (when dual switch) -->
-        ${dev.dual ? `
-        <div class="switch-settings-box" style="margin-top:12px;border-color:rgba(167,139,250,0.35);">
+        <!-- Switch 2 (Relay 2) Dedicated Settings Panel -->
+        <div id="settingsPanelRelay2" class="switch-settings-box" style="display:none;border-color:rgba(167,139,250,0.35);">
           <div class="switch-box-header">
             <span class="switch-badge" style="background:rgba(167,139,250,0.15);color:#c084fc;">
               <i class="fa-solid fa-code-branch"></i> Switch 2 Control
@@ -858,7 +871,6 @@
             </div>
           </div>
         </div>
-        ` : ''}
 
         <div class="form-group" style="margin-top:14px;margin-bottom:14px;background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;border:1px solid var(--card-border);">
           <label style="font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:6px;">
@@ -936,6 +948,44 @@
           }
         </div>
       `);
+    },
+
+    switchSettingsTab(tabNum) {
+      const t1 = document.getElementById("tabSwitch1");
+      const t2 = document.getElementById("tabSwitch2");
+      const p1 = document.getElementById("settingsPanelRelay1");
+      const p2 = document.getElementById("settingsPanelRelay2");
+      if (tabNum === 2) {
+        if (t1) {
+          t1.classList.remove("active");
+          t1.style.borderColor = "rgba(255,255,255,0.1)";
+          t1.style.background = "rgba(255,255,255,0.04)";
+          t1.style.color = "var(--text-muted)";
+        }
+        if (t2) {
+          t2.classList.add("active");
+          t2.style.borderColor = "#c084fc";
+          t2.style.background = "rgba(167,139,250,0.2)";
+          t2.style.color = "#fff";
+        }
+        if (p1) p1.style.display = "none";
+        if (p2) p2.style.display = "block";
+      } else {
+        if (t2) {
+          t2.classList.remove("active");
+          t2.style.borderColor = "rgba(255,255,255,0.1)";
+          t2.style.background = "rgba(255,255,255,0.04)";
+          t2.style.color = "var(--text-muted)";
+        }
+        if (t1) {
+          t1.classList.add("active");
+          t1.style.borderColor = "var(--accent,#38bdf8)";
+          t1.style.background = "rgba(56,189,248,0.15)";
+          t1.style.color = "#fff";
+        }
+        if (p2) p2.style.display = "none";
+        if (p1) p1.style.display = "block";
+      }
     },
 
     checkFirmwareUpdate: async (index) => {
@@ -1027,18 +1077,19 @@
       const boot1El = document.getElementById("devBootState1") || document.getElementById("bootState");
       if (boot1El) dev.bootState = boot1El.value;
 
-      if (dev.dual) {
-        const r2Input = document.getElementById("devRelay2");
-        if (r2Input) dev.relay2Name = r2Input.value.trim() || "Switch 2";
-        const r2IconEl = document.getElementById("devRelay2Icon");
-        if (r2IconEl) dev.relay2Icon = r2IconEl.value;
-        const r2W = document.getElementById("devRelay2Watts");
-        if (r2W) dev.relay2Watts = Math.max(0, Number(r2W.value) || 0);
-        const autoOffEl2 = document.getElementById("devAutoOffSec2");
-        if (autoOffEl2) dev.autoOffSec2 = Math.max(0, Math.min(65000, Math.round(Number(autoOffEl2.value) || 0)));
-        const boot2El = document.getElementById("devBootState2");
-        if (boot2El) dev.bootState2 = boot2El.value;
+      const r2Input = document.getElementById("devRelay2");
+      if (r2Input) {
+        dev.relay2Name = r2Input.value.trim() || "Switch 2";
+        dev.dual = true;
       }
+      const r2IconEl = document.getElementById("devRelay2Icon");
+      if (r2IconEl) dev.relay2Icon = r2IconEl.value;
+      const r2W = document.getElementById("devRelay2Watts");
+      if (r2W) dev.relay2Watts = Math.max(0, Number(r2W.value) || 0);
+      const autoOffEl2 = document.getElementById("devAutoOffSec2");
+      if (autoOffEl2) dev.autoOffSec2 = Math.max(0, Math.min(65000, Math.round(Number(autoOffEl2.value) || 0)));
+      const boot2El = document.getElementById("devBootState2");
+      if (boot2El) dev.bootState2 = boot2El.value;
 
       const wallLockEl = document.getElementById("devWallLock");
       if (wallLockEl) dev.wallSwitchLock = !!wallLockEl.checked;
