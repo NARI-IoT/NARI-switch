@@ -213,6 +213,7 @@ bool relay1State = false;
 bool relay2State = false;
 unsigned long lastMqttRetry = 0;
 unsigned long pendingConfigSave = 0;
+unsigned long lastHeartbeatTime = 0;
 uint16_t wifiFailedAttempts = 0;
 bool emergencyPwrResetActive = false;
 bool wasConnectedBefore = false;
@@ -466,21 +467,26 @@ void setLed(bool on) {
 }
 
 struct BlinkPattern {
-  uint16_t durations[6];
+  uint16_t durations[12];
   uint8_t count;
   uint8_t index;
   unsigned long nextChange;
+  bool baselineState;
 } activePattern;
 
 void triggerLedBlinks(uint8_t count) {
   blinkActive = true;
   activePattern.count = count * 2;
   activePattern.index = 0;
+  // Snappy, ultra-fast 35ms pulse (high-speed stroboscopic feedback)
   for (int i = 0; i < activePattern.count; i++) {
-    activePattern.durations[i] = 80; // 80ms crisp pulse
+    activePattern.durations[i] = 35;
   }
   activePattern.nextChange = millis() + activePattern.durations[0];
-  setLed(true);
+  // Capture steady-state baseline: true if any relay is active, false if both standby
+  activePattern.baselineState = (relay1State || relay2State);
+  // First pulse inverts baseline so it is instantly noticeable regardless of current state
+  setLed(!activePattern.baselineState);
 }
 
 void triggerFactoryReset() {
@@ -1838,9 +1844,14 @@ void loop() {
       activePattern.index++;
       if (activePattern.index >= activePattern.count) {
         blinkActive = false;
+        // Immediately enforce solid steady-state upon completion of blink:
+        // - When two relays ON (or any relay ON): LED stays solid ON
+        // - When two relays OFF: LED stays solid OFF
+        setLed(relay1State || relay2State);
       } else {
         activePattern.nextChange = nowMs + activePattern.durations[activePattern.index];
-        setLed((activePattern.index % 2) == 0);
+        bool flashState = ((activePattern.index % 2) == 0) ? !activePattern.baselineState : activePattern.baselineState;
+        setLed(flashState);
       }
     }
   } else if (nowMs < pairedSolidUntil) {
@@ -1854,12 +1865,14 @@ void loop() {
     else if (phase < 420) setLed(false);
     else if (phase < 920) setLed(true);
     else setLed(false);
-  } else if (WiFi.status() != WL_CONNECTED) {
-    // Smooth Reconnection Pulse (600ms ON / 600ms OFF)
-    unsigned long phase = nowMs % 1200;
-    setLed(phase < 600);
+  } else if (WiFi.status() != WL_CONNECTED && !relay1State && !relay2State) {
+    // Reconnecting pulse only when both relays are standby (OFF)
+    unsigned long phase = nowMs % 1000;
+    setLed(phase < 500);
   } else {
-    // Normal Idle: Solid ON if either relay is active, dark when both off
+    // Normal Steady State:
+    // - When two relays ON (or any relay ON): Solid ON
+    // - When two relays OFF: Solid OFF
     setLed(relay1State || relay2State);
   }
 
@@ -1902,6 +1915,11 @@ void loop() {
       reconnectMqtt();
     } else {
       mqttClient.loop();
+      // Periodic 30s telemetry heartbeat (keeps live WiFi RSSI signal strength fresh on smart card)
+      if (nowMs - lastHeartbeatTime >= 30000UL) {
+        lastHeartbeatTime = nowMs;
+        publishState();
+      }
     }
   }
 
