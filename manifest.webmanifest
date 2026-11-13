@@ -9,8 +9,8 @@
   "orientation": "portrait",
   "lang": "en",
   "categories": ["lifestyle", "utilities"],
-  "background_color": "#0b1a13",
-  "theme_color": "#10b981",
+  "background_color": "#eef2f6",
+  "theme_color": "#6366f1",
   "icons": [
     {
       "src": "icons/icon-192.png",

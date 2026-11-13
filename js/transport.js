@@ -266,7 +266,8 @@
  
     // ---------------- LAN ----------------
     lanUrl(dev, path, params) {
-      const q = Object.assign({}, params || {}, { k: NARI.settings.lanToken });
+      const token = (dev && dev.lanToken) || NARI.settings.lanToken;
+      const q = Object.assign({}, params || {}, { k: token });
       const qs = Object.keys(q).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(q[k])}`).join("&");
       return `http://${dev.ip}/${path}?${qs}`;
     },

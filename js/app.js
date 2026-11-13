@@ -77,9 +77,9 @@
     return String(v === null || v === undefined ? "" : v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  // The ESP-01S can only fetch plain http:// firmware images.
+  // Allow https:// (ESP32-C3) and http:// (legacy ESP-01S) signed/versioned .bin firmware URLs.
   function isValidOtaUrl(u) {
-    return typeof u === "string" && /^http:\/\/[^\s'"<>]+\.bin$/i.test(u) && u.length < 200;
+    return typeof u === "string" && /^https?:\/\/[^\s'"<>]+\.bin(\?[^\s'"<>]*)?$/i.test(u) && u.length < 300;
   }
 
   function compareVersions(a, b) {
@@ -2867,15 +2867,25 @@
         <div style="margin-top:10px;">
           <div class="form-group">
             <label>Cloud Broker WebSocket URL (wss://)</label>
-            <input type="text" id="cfgBroker" value="${s.brokerUrl}">
+            <input type="text" id="cfgBroker" value="${escHtml(s.brokerUrl)}">
+          </div>
+          <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div>
+              <label>MQTT Username</label>
+              <input type="text" id="cfgMqttUser" value="${escHtml(s.mqttUser || '')}" autocomplete="off">
+            </div>
+            <div>
+              <label>MQTT Password</label>
+              <input type="password" id="cfgMqttPass" value="${escHtml(s.mqttPass || '')}" autocomplete="new-password">
+            </div>
           </div>
           <div class="form-group">
-            <label>LAN API Auth Token</label>
-            <input type="text" id="cfgLanToken" value="${s.lanToken}">
+            <label>LAN API Auth Token (Global Fallback)</label>
+            <input type="text" id="cfgLanToken" value="${escHtml(s.lanToken)}">
           </div>
           <div class="form-group">
             <label>Subnets to Scan</label>
-            <input type="text" id="cfgSubnets" value="${s.lanScanSubnets}">
+            <input type="text" id="cfgSubnets" value="${escHtml(s.lanScanSubnets)}">
           </div>
         </div>
       </details>
@@ -2897,6 +2907,10 @@
     if (tariffEl) s.tariffRate = Math.max(0.5, Number(tariffEl.value) || 7.5);
     const brokerEl = document.getElementById("cfgBroker");
     if (brokerEl) s.brokerUrl = brokerEl.value.trim();
+    const mqttUserEl = document.getElementById("cfgMqttUser");
+    if (mqttUserEl) s.mqttUser = mqttUserEl.value.trim();
+    const mqttPassEl = document.getElementById("cfgMqttPass");
+    if (mqttPassEl) s.mqttPass = mqttPassEl.value;
     const tokenEl = document.getElementById("cfgLanToken");
     if (tokenEl) s.lanToken = tokenEl.value.trim();
     const subEl = document.getElementById("cfgSubnets");

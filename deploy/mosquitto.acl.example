@@ -1,0 +1,23 @@
+# NARI Smart Home — Commercial Mosquitto Topic ACL Example
+# Place in /etc/mosquitto/aclfile and reference via:
+#   allow_anonymous false
+#   password_file /etc/mosquitto/passwd
+#   acl_file /etc/mosquitto/aclfile
+#
+# IMPORTANT: Do NOT give customer accounts wildcard access to `nari/#`.
+# Issue one MQTT username per customer or per device, and scope topics strictly.
+
+# Example Customer A (owns device sw_f5128b144068 and sw_9a10c4221100)
+user cust_uid_1001
+topic readwrite nari/sw_f5128b144068/#
+topic readwrite nari/sw_9a10c4221100/#
+
+# Example Device Hardware Account (only its own device topic tree)
+user dev_sw_f5128b144068
+topic readwrite nari/sw_f5128b144068/#
+
+# Optional Admin / Fleet Monitoring Service (server-side only, never in browser JS)
+user nari_fleet_ops
+topic read nari/+/status
+topic read nari/+/state
+
