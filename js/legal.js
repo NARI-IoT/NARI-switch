@@ -11,14 +11,14 @@
   var KEY = "nari_terms_accepted";
   var APP_SCRIPTS = [
     { src: "js/config.local.js", optional: true },
-    { src: "js/config.js?v=2.5.0" },
-    { src: "js/store.js?v=2.5.0" },
-    { src: "js/transport.js?v=2.5.0" },
-    { src: "js/audio.js?v=2.5.0" },
-    { src: "js/sensors.js?v=2.5.0" },
-    { src: "js/scenes.js?v=2.5.0" },
-    { src: "js/app.js?v=2.5.0" },
-    { src: "js/sharing.js?v=2.5.0" }
+    { src: "js/config.js?v=2.6.0" },
+    { src: "js/store.js?v=2.6.0" },
+    { src: "js/transport.js?v=2.6.0" },
+    { src: "js/audio.js?v=2.6.0" },
+    { src: "js/sensors.js?v=2.6.0" },
+    { src: "js/scenes.js?v=2.6.0" },
+    { src: "js/app.js?v=2.6.0" },
+    { src: "js/sharing.js?v=2.6.0" }
   ];
 
   function esc(s) {

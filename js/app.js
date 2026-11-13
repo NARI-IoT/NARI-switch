@@ -39,8 +39,19 @@
   // --- Theme Management ---
   function applyTheme(theme) {
     document.body.className = "";
-    if (theme && theme !== "default") {
-      document.body.classList.add(`theme-${theme}`);
+    const t = (!theme || theme === "default" || theme === "light") ? "light" : theme;
+    document.body.classList.add(`theme-${t}`);
+    const meta = document.getElementById("metaThemeColor");
+    if (meta) {
+      const colors = {
+        light: "#eef2f6",
+        cosmic: "#070D18",
+        emerald: "#061e14",
+        ocean: "#070D18",
+        amber: "#1a1208",
+        violet: "#0f0b1a"
+      };
+      meta.setAttribute("content", colors[t] || "#eef2f6");
     }
   }
 
@@ -138,41 +149,54 @@
   // --- Room Filtering & Appliance Icons ---
   let currentRoomFilter = "all";
 
-  function getApplianceIcon(type, isOn) {
+  function getApplianceTypeKey(type) {
     type = (type || "").toLowerCase();
-    if (type.includes("fan") || type.includes("exhaust")) {
-      return `<i class="fa-solid fa-fan ${isOn ? 'fa-spin' : ''}" style="color:${isOn ? '#a78bfa' : '#64748b'};font-size:3.1rem;filter:${isOn ? 'drop-shadow(0 0 18px rgba(167,139,250,0.85))' : 'none'};"></i>`;
+    if (type.includes("fan") || type.includes("exhaust")) return "fan";
+    if (type.includes("ac") || type.includes("air") || type.includes("conditioner") || type.includes("cool")) return "ac";
+    if (type.includes("geyser") || type.includes("heater") || type.includes("boiler")) return "geyser";
+    if (type.includes("socket") || type.includes("plug") || type.includes("outlet")) return "socket";
+    if (type.includes("motor") || type.includes("pump") || type.includes("tank")) return "motor";
+    if (type.includes("lamp") || type.includes("bedside") || type.includes("desk")) return "lamp";
+    if (type.includes("tv") || type.includes("screen")) return "tv";
+    return "light";
+  }
+
+  function getApplianceIcon(type, isOn) {
+    const key = getApplianceTypeKey(type);
+    if (key === "fan") {
+      return `<i class="fa-solid fa-fan ${isOn ? 'fan-spinning' : ''}"></i>`;
     }
-    if (type.includes("ac") || type.includes("air") || type.includes("conditioner") || type.includes("cool")) {
-      return `<i class="fa-solid fa-snowflake" style="color:${isOn ? '#38bdf8' : '#64748b'};font-size:3.1rem;filter:${isOn ? 'drop-shadow(0 0 18px rgba(56,189,248,0.85))' : 'none'};"></i>`;
+    if (key === "ac") {
+      return `<i class="fa-solid fa-snowflake"></i>`;
     }
-    if (type.includes("geyser") || type.includes("heater") || type.includes("boiler")) {
-      return `<i class="fa-solid fa-fire-flame-curved" style="color:${isOn ? '#f97316' : '#64748b'};font-size:3.1rem;filter:${isOn ? 'drop-shadow(0 0 18px rgba(249,115,22,0.85))' : 'none'};"></i>`;
+    if (key === "geyser") {
+      return `<i class="fa-solid fa-fire-flame-curved"></i>`;
     }
-    if (type.includes("socket") || type.includes("plug") || type.includes("outlet")) {
-      return `<i class="fa-solid fa-plug" style="color:${isOn ? '#34d399' : '#64748b'};font-size:3.1rem;filter:${isOn ? 'drop-shadow(0 0 18px rgba(52,211,153,0.85))' : 'none'};"></i>`;
+    if (key === "socket") {
+      return `<i class="fa-solid fa-plug"></i>`;
     }
-    if (type.includes("motor") || type.includes("pump") || type.includes("tank")) {
-      return `<i class="fa-solid fa-water" style="color:${isOn ? '#06b6d4' : '#64748b'};font-size:3.1rem;filter:${isOn ? 'drop-shadow(0 0 18px rgba(6,182,212,0.85))' : 'none'};"></i>`;
+    if (key === "motor") {
+      return `<i class="fa-solid fa-water"></i>`;
     }
-    if (type.includes("lamp") || type.includes("bedside") || type.includes("desk")) {
-      return `<i class="fa-solid fa-bolt" style="color:${isOn ? '#f59e0b' : '#64748b'};font-size:3.1rem;filter:${isOn ? 'drop-shadow(0 0 18px rgba(245,158,11,0.85))' : 'none'};"></i>`;
+    if (key === "lamp") {
+      return `<i class="fa-solid fa-bolt"></i>`;
     }
-    if (type.includes("tv") || type.includes("screen")) {
-      return `<i class="fa-solid fa-tv" style="color:${isOn ? '#c084fc' : '#64748b'};font-size:3.1rem;filter:${isOn ? 'drop-shadow(0 0 18px rgba(192,132,252,0.85))' : 'none'};"></i>`;
+    if (key === "tv") {
+      return `<i class="fa-solid fa-tv"></i>`;
     }
-    return `<i class="fa-solid fa-lightbulb" style="color:${isOn ? '#fbbf24' : '#64748b'};font-size:3.1rem;filter:${isOn ? 'drop-shadow(0 0 18px rgba(251,191,36,0.85))' : 'none'};"></i>`;
+    return `<i class="fa-solid fa-lightbulb"></i>`;
   }
 
   function getApplianceGlowColor(type) {
-    type = (type || "").toLowerCase();
-    if (type.includes("fan") || type.includes("exhaust")) return "#a78bfa";
-    if (type.includes("ac") || type.includes("air") || type.includes("conditioner") || type.includes("cool")) return "#38bdf8";
-    if (type.includes("geyser") || type.includes("heater") || type.includes("boiler")) return "#f97316";
-    if (type.includes("socket") || type.includes("plug") || type.includes("outlet")) return "#34d399";
-    if (type.includes("motor") || type.includes("pump") || type.includes("tank")) return "#06b6d4";
-    if (type.includes("tv") || type.includes("screen")) return "#c084fc";
-    return "#fbbf24";
+    const key = getApplianceTypeKey(type);
+    if (key === "fan") return "#0ea5e9";
+    if (key === "ac") return "#38bdf8";
+    if (key === "geyser") return "#f97316";
+    if (key === "socket") return "#10b981";
+    if (key === "motor") return "#06b6d4";
+    if (key === "lamp") return "#f59e0b";
+    if (key === "tv") return "#8b5cf6";
+    return "#f59e0b";
   }
 
   function renderWifiBars(rssi, rtt) {
@@ -322,7 +346,14 @@
     const cState = transport.cloudState;
     const cOk = cState === "connected";
 
-    // Update the Edge Live Connected Pill
+    const brandSub = document.getElementById("brandSubtitle");
+    if (brandSub) {
+      if (cOk) brandSub.innerText = "Live Home Hub • Connected";
+      else if (cState === "connecting") brandSub.innerText = "Connecting to Hub...";
+      else brandSub.innerText = "Hub Reconnecting...";
+    }
+
+    // Update the Edge Live Connected Pill (if present)
     if (dom.cloudEdgeStatus) {
       dom.cloudEdgeStatus.className = `pill-edge ${cOk ? 'ok' : (cState === 'connecting' ? 'busy' : 'bad')}`;
     }
@@ -422,14 +453,20 @@
       const activeWatts = (isR1On ? w1 : 0) + (dev.dual && isR2On ? w2 : 0);
       const kwhToday = ((w1 * (r1Ms / 3600000)) + (dev.dual ? (w2 * (r2Ms / 3600000)) : 0)) / 1000;
       const rsToday = (kwhToday * tariff).toFixed(2);
+      const typeKey1 = getApplianceTypeKey(dev.relay1Icon || dev.relay1Name);
+      const typeKey2 = getApplianceTypeKey(dev.relay2Icon || dev.relay2Name);
       const glow1 = getApplianceGlowColor(dev.relay1Icon || dev.relay1Name);
       const glow2 = getApplianceGlowColor(dev.relay2Icon || dev.relay2Name);
       const timerPillHtml = formatRemainingTimer(dev);
       const safeBg = dev.bgPhoto && /^https?:\/\//i.test(dev.bgPhoto) ? dev.bgPhoto.replace(/["'()\\]/g, "") : "";
       const bgStyle = safeBg ? `style="background-image: linear-gradient(180deg, rgba(7,13,24,0.48) 0%, rgba(7,13,24,0.82) 100%), url('${safeBg}');"` : "";
-      const subContext = dev._lastActor
-        ? `Last: ${escHtml(dev._lastActor.source || 'app')} • ${escHtml(dev._lastActor.user || 'Owner')}`
-        : `ID: <span class="mono">${escHtml(dev.id || 'a40a')}</span>${dev.fw ? ` • v${escHtml(dev.fw)}` : ''}`;
+      const linkMode = dev.link || (transport.lanFresh(dev) ? 'lan' : (transport.cloudConnected ? 'cloud' : 'none'));
+      const linkText = !isOnline ? 'Offline' : (linkMode === 'lan' || linkMode === 'lan-grace' ? 'Local Wi-Fi' : 'Cloud Sync');
+      const subContext = !isOnline
+        ? `<span class="offline-inline-pill"><i class="fa-solid fa-triangle-exclamation"></i> Offline • Tap <i class="fa-solid fa-gear"></i> to check</span>`
+        : (dev._lastActor
+            ? `Last: ${escHtml(dev._lastActor.source || 'app')} • ${escHtml(dev._lastActor.user || 'Owner')}`
+            : `${dev.dual ? 'Dual Relay' : 'Smart Relay'} • ${linkText}`);
 
       return `
         <div class="node-card ${!isOnline ? 'offline' : ''} ${safeBg ? 'has-bg' : ''}" id="dev-${i}" ${bgStyle}>
@@ -441,7 +478,7 @@
             <div class="node-meta">
               <span class="room-badge">${escHtml(roomLabel)}</span>
               <button class="node-menu-btn" onclick="event.stopPropagation(); NARI.app.openIrRemoteModal(${i})" title="Universal IR Remote (AC &amp; TV)">
-                <i class="fa-solid fa-gamepad" style="color:#38bdf8;"></i>
+                <i class="fa-solid fa-gamepad"></i>
               </button>
               <button class="node-menu-btn" onclick="event.stopPropagation(); NARI.app.openSettingsModal(${i})" title="Device Settings &amp; Hardware Config">
                 <i class="fa-solid fa-gear"></i>
@@ -452,9 +489,11 @@
           <div class="relay-grid ${dev.dual ? 'dual' : 'single'}">
             <!-- Relay 1 Control Tile -->
             <div class="relay-tile ${isR1On ? 'active' : ''} ${!isOnline ? 'offline' : ''}"
+                 data-appliance="${typeKey1}"
                  style="--tile-glow:${glow1};"
                  onclick="NARI.app.toggleRelay(${i}, 1)"
                  oncontextmenu="event.preventDefault(); NARI.app.openSettingsModal(${i});">
+              <span class="tile-switch-pill ${isR1On ? 'on' : 'off'}" aria-hidden="true"><span class="tile-switch-knob"></span></span>
               <div class="tile-icon-box">
                 ${getApplianceIcon(dev.relay1Icon || dev.relay1Name, isR1On)}
               </div>
@@ -467,9 +506,11 @@
             <!-- Relay 2 Control Tile -->
             ${dev.dual ? `
             <div class="relay-tile ${isR2On ? 'active' : ''} ${!isOnline ? 'offline' : ''}"
+                 data-appliance="${typeKey2}"
                  style="--tile-glow:${glow2};"
                  onclick="NARI.app.toggleRelay(${i}, 2)"
                  oncontextmenu="event.preventDefault(); NARI.app.openSettingsModal(${i});">
+              <span class="tile-switch-pill ${isR2On ? 'on' : 'off'}" aria-hidden="true"><span class="tile-switch-knob"></span></span>
               <div class="tile-icon-box">
                 ${getApplianceIcon(dev.relay2Icon || dev.relay2Name, isR2On)}
               </div>
@@ -531,11 +572,25 @@
 
     cardEl.classList.toggle("offline", !isOnline);
 
+    const subEl = cardEl.querySelector(".node-sub");
+    if (subEl) {
+      const linkMode = dev.link || (transport.lanFresh(dev) ? 'lan' : (transport.cloudConnected ? 'cloud' : 'none'));
+      const linkText = !isOnline ? 'Offline' : (linkMode === 'lan' || linkMode === 'lan-grace' ? 'Local Wi-Fi' : 'Cloud Sync');
+      subEl.innerHTML = !isOnline
+        ? `<span class="offline-inline-pill"><i class="fa-solid fa-triangle-exclamation"></i> Offline • Tap <i class="fa-solid fa-gear"></i> to check</span>`
+        : (dev._lastActor
+            ? `Last: ${escHtml(dev._lastActor.source || 'app')} • ${escHtml(dev._lastActor.user || 'Owner')}`
+            : `${dev.dual ? 'Dual Relay' : 'Smart Relay'} • ${linkText}`);
+    }
+
     const w1 = typeof dev.relay1Watts === 'number' ? dev.relay1Watts : 12;
     const w2 = typeof dev.relay2Watts === 'number' ? dev.relay2Watts : 75;
     const tiles = cardEl.querySelectorAll(".relay-tile");
     if (tiles[0]) {
       tiles[0].className = `relay-tile ${isR1On ? 'active' : ''} ${!isOnline ? 'offline' : ''}`;
+      tiles[0].setAttribute("data-appliance", getApplianceTypeKey(dev.relay1Icon || dev.relay1Name));
+      const swPill = tiles[0].querySelector(".tile-switch-pill");
+      if (swPill) swPill.className = `tile-switch-pill ${isR1On ? 'on' : 'off'}`;
       const iconBox = tiles[0].querySelector(".tile-icon-box");
       if (iconBox) iconBox.innerHTML = getApplianceIcon(dev.relay1Icon || dev.relay1Name, isR1On);
       const statusEl = tiles[0].querySelector(".tile-status");
@@ -547,6 +602,9 @@
 
     if (dev.dual && tiles[1]) {
       tiles[1].className = `relay-tile ${isR2On ? 'active' : ''} ${!isOnline ? 'offline' : ''}`;
+      tiles[1].setAttribute("data-appliance", getApplianceTypeKey(dev.relay2Icon || dev.relay2Name));
+      const swPill2 = tiles[1].querySelector(".tile-switch-pill");
+      if (swPill2) swPill2.className = `tile-switch-pill ${isR2On ? 'on' : 'off'}`;
       const iconBox2 = tiles[1].querySelector(".tile-icon-box");
       if (iconBox2) iconBox2.innerHTML = getApplianceIcon(dev.relay2Icon || dev.relay2Name, isR2On);
       const statusEl2 = tiles[1].querySelector(".tile-status");
@@ -2783,12 +2841,12 @@
       <div class="form-group">
         <label>App Theme</label>
         <select id="cfgTheme" onchange="NARI.app.changeTheme(this.value)">
-          <option value="default" ${s.theme === 'default' ? 'selected' : ''}>Default Cosmic</option>
-          <option value="emerald" ${s.theme === 'emerald' ? 'selected' : ''}>Emerald Forest</option>
-          <option value="ocean" ${s.theme === 'ocean' ? 'selected' : ''}>Ocean Blue</option>
-          <option value="amber" ${s.theme === 'amber' ? 'selected' : ''}>Warm Amber</option>
-          <option value="violet" ${s.theme === 'violet' ? 'selected' : ''}>Royal Violet</option>
-          <option value="light" ${s.theme === 'light' ? 'selected' : ''}>Clean Daylight</option>
+          <option value="default" ${(s.theme === 'default' || s.theme === 'light' || !s.theme) ? 'selected' : ''}>Soft Light (Default)</option>
+          <option value="cosmic" ${s.theme === 'cosmic' ? 'selected' : ''}>Midnight Cosmic (Dark)</option>
+          <option value="emerald" ${s.theme === 'emerald' ? 'selected' : ''}>Emerald Forest (Dark)</option>
+          <option value="ocean" ${s.theme === 'ocean' ? 'selected' : ''}>Ocean Blue (Dark)</option>
+          <option value="amber" ${s.theme === 'amber' ? 'selected' : ''}>Warm Amber (Dark)</option>
+          <option value="violet" ${s.theme === 'violet' ? 'selected' : ''}>Royal Violet (Dark)</option>
         </select>
       </div>
       <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">

@@ -1,23 +1,23 @@
 /* NARI Smart Home - service worker.
  * Network-first for navigation & app shell so updates appear immediately.
  * Fallback to cache when offline (works offline / on LAN with no internet). */
-const CACHE_VERSION = "nari-shell-v2.5.0";
+const CACHE_VERSION = "nari-shell-v2.6.0";
 
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./css/app.css?v=2.5.0",
-  "./js/legal-content.js?v=2.5.0",
-  "./js/legal.js?v=2.5.0",
-  "./js/config.js?v=2.5.0",
-  "./js/store.js?v=2.5.0",
-  "./js/transport.js?v=2.5.0",
-  "./js/audio.js?v=2.5.0",
-  "./js/sensors.js?v=2.5.0",
-  "./js/scenes.js?v=2.5.0",
-  "./js/app.js?v=2.5.0",
-  "./js/sharing.js?v=2.5.0",
+  "./css/app.css?v=2.6.0",
+  "./js/legal-content.js?v=2.6.0",
+  "./js/legal.js?v=2.6.0",
+  "./js/config.js?v=2.6.0",
+  "./js/store.js?v=2.6.0",
+  "./js/transport.js?v=2.6.0",
+  "./js/audio.js?v=2.6.0",
+  "./js/sensors.js?v=2.6.0",
+  "./js/scenes.js?v=2.6.0",
+  "./js/app.js?v=2.6.0",
+  "./js/sharing.js?v=2.6.0",
   "./icons/icon.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
