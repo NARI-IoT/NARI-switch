@@ -84,6 +84,7 @@
 #include <Preferences.h>
 #include <ArduinoOTA.h>
 #include <HTTPUpdate.h>
+#include <WiFiClientSecure.h>
 #include <IRremoteESP8266.h>
 #include <IRsend.h>
 #include <IRrecv.h>
@@ -188,6 +189,9 @@ struct Config {
   char room[24];        // Room cluster e.g. "Living Room"
   uint8_t applianceType;// 0: Light, 1: Fan, 2: TV, 3: Soundbar, 4: AC, 5: General
   char authKey[33];
+  char mqttUser[33];     // Per-device MQTT username (stored in NVS)
+  char mqttPass[65];     // Per-device MQTT password (stored in NVS)
+  uint16_t mqttPort;     // 1883 (TCP) or 8883 (TLS)
   char houseId[33];      // Isolated home cluster ID e.g. "house_9f8a..."
   char bootState[8];     // "LAST", "ON", "OFF"
   bool lastState1;
@@ -206,6 +210,7 @@ struct Config {
 WebServer server(80);
 DNSServer dnsServer;
 WiFiClient espClient;
+WiFiClientSecure espSecureClient;
 PubSubClient mqttClient(espClient);
 
 bool isConfigMode = false;
@@ -614,6 +619,9 @@ void loadConfig() {
   String room = prefs.getString("room", "Living Room");
   uint8_t appType = prefs.getUChar("appType", 0);
   String authKey = prefs.getString("authKey", DEFAULT_AUTH_KEY);
+  String mqttUser = prefs.getString("mqttUser", DEFAULT_MQTT_USER);
+  String mqttPass = prefs.getString("mqttPass", DEFAULT_MQTT_PASS);
+  uint16_t mqttPort = prefs.getUShort("mqttPort", DEFAULT_MQTT_PORT);
   String houseId = prefs.getString("houseId", "");
   String bootState = prefs.getString("bootState", "LAST");
   bool ls1 = prefs.getBool("lastState1", false);
@@ -649,6 +657,9 @@ void loadConfig() {
   strncpy(config.room, room.c_str(), sizeof(config.room) - 1);
   config.applianceType = appType;
   strncpy(config.authKey, authKey.c_str(), sizeof(config.authKey) - 1);
+  strncpy(config.mqttUser, mqttUser.c_str(), sizeof(config.mqttUser) - 1);
+  strncpy(config.mqttPass, mqttPass.c_str(), sizeof(config.mqttPass) - 1);
+  config.mqttPort = mqttPort > 0 ? mqttPort : DEFAULT_MQTT_PORT;
   strncpy(config.houseId, houseId.c_str(), sizeof(config.houseId) - 1);
   strncpy(config.bootState, bootState.c_str(), sizeof(config.bootState) - 1);
   config.lastState1 = ls1;
@@ -670,6 +681,9 @@ void saveConfig() {
   prefs.putString("room", config.room);
   prefs.putUChar("appType", config.applianceType);
   prefs.putString("authKey", config.authKey);
+  prefs.putString("mqttUser", config.mqttUser);
+  prefs.putString("mqttPass", config.mqttPass);
+  prefs.putUShort("mqttPort", config.mqttPort);
   prefs.putString("houseId", config.houseId);
   prefs.putString("bootState", config.bootState);
   prefs.putBool("lastState1", config.lastState1);
@@ -901,8 +915,15 @@ void performHttpOta(const String &url) {
     }
   });
 
-  WiFiClient otaClient;
-  t_httpUpdate_return ret = httpUpdate.update(otaClient, url);
+  t_httpUpdate_return ret;
+  if (url.startsWith("https://")) {
+    WiFiClientSecure otaSecureClient;
+    otaSecureClient.setInsecure(); // Encrypts OTA transport over TLS; pin root CA via setCACert() if desired
+    ret = httpUpdate.update(otaSecureClient, url);
+  } else {
+    WiFiClient otaClient;
+    ret = httpUpdate.update(otaClient, url);
+  }
 
   switch (ret) {
     case HTTP_UPDATE_OK:
@@ -1188,14 +1209,24 @@ void reconnectMqtt() {
   if (millis() - lastMqttRetry < 6000) return;
   lastMqttRetry = millis();
 
-  espClient.setTimeout(400);
-  mqttClient.setServer(DEFAULT_MQTT_BROKER, DEFAULT_MQTT_PORT);
+  const bool useTls = (config.mqttPort == 8883);
+  if (useTls) {
+    espSecureClient.setInsecure();
+    espSecureClient.setTimeout(400);
+    mqttClient.setClient(espSecureClient);
+  } else {
+    espClient.setTimeout(400);
+    mqttClient.setClient(espClient);
+  }
+  mqttClient.setServer(DEFAULT_MQTT_BROKER, config.mqttPort);
   mqttClient.setCallback(onMqttMessage);
 
   String clientId = "NariC3_" + String(config.devId);
   String willTopicDevice = "device/" + String(config.devId) + "/status";
+  const char *mqttUser = strlen(config.mqttUser) > 0 ? config.mqttUser : DEFAULT_MQTT_USER;
+  const char *mqttPass = strlen(config.mqttPass) > 0 ? config.mqttPass : DEFAULT_MQTT_PASS;
 
-  if (mqttClient.connect(clientId.c_str(), DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS,
+  if (mqttClient.connect(clientId.c_str(), mqttUser, mqttPass,
                          willTopicDevice.c_str(), 0, true, "offline")) {
     Serial.println("[MQTT] Connected to Oracle Cloud broker!");
 
@@ -1296,6 +1327,13 @@ void handleCaptivePortal() {
        "<div class='form-group'><label>WI-FI PASSWORD</label><input type='password' name='pass' placeholder='Enter Wi-Fi password'></div>"
        "<div class='form-group'><label>ROOM / CLUSTER</label><input type='text' name='room' value='" + String(config.room) + "'></div>"
        "<div class='form-group'><label>DEVICE NAME</label><input type='text' name='name' value='" + String(config.devName) + "'></div>"
+       "<details style='margin-bottom:14px;font-size:12px;color:#94a3b8;'>"
+       "<summary style='cursor:pointer;font-weight:700;color:#38bdf8;'>Advanced Security (Optional)</summary>"
+       "<div class='form-group' style='margin-top:10px;'><label>LAN AUTH KEY</label><input type='text' name='authKey' placeholder='Leave blank to keep current'></div>"
+       "<div class='form-group'><label>MQTT USERNAME</label><input type='text' name='mqttUser' placeholder='Leave blank for default'></div>"
+       "<div class='form-group'><label>MQTT PASSWORD</label><input type='password' name='mqttPass' placeholder='Leave blank for default'></div>"
+       "<div class='form-group'><label>MQTT PORT (1883 or 8883 TLS)</label><input type='text' name='mqttPort' value='" + String(config.mqttPort) + "'></div>"
+       "</details>"
        "<button type='submit' class='btn'>Connect & Save Settings</button></form>"
        "<div class='features'>"
        "&#10004; Dual Active-LOW Relays (GPIO 5 & 6)<br>"
@@ -1316,6 +1354,21 @@ void handleSave() {
     strncpy(config.devName, server.arg("name").c_str(), sizeof(config.devName) - 1);
   if (server.hasArg("room") && server.arg("room").length() > 0)
     strncpy(config.room, server.arg("room").c_str(), sizeof(config.room) - 1);
+  if (server.hasArg("authKey") && server.arg("authKey").length() > 0) {
+    memset(config.authKey, 0, sizeof(config.authKey));
+    strncpy(config.authKey, server.arg("authKey").c_str(), sizeof(config.authKey) - 1);
+  }
+  if (server.hasArg("mqttUser") && server.arg("mqttUser").length() > 0) {
+    memset(config.mqttUser, 0, sizeof(config.mqttUser));
+    strncpy(config.mqttUser, server.arg("mqttUser").c_str(), sizeof(config.mqttUser) - 1);
+  }
+  if (server.hasArg("mqttPass") && server.arg("mqttPass").length() > 0) {
+    memset(config.mqttPass, 0, sizeof(config.mqttPass));
+    strncpy(config.mqttPass, server.arg("mqttPass").c_str(), sizeof(config.mqttPass) - 1);
+  }
+  if (server.hasArg("mqttPort") && server.arg("mqttPort").toInt() > 0) {
+    config.mqttPort = (uint16_t)server.arg("mqttPort").toInt();
+  }
 
   saveConfig();
   playConnectedChime();
